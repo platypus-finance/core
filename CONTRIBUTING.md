@@ -1,4 +1,4 @@
-# Contributing to Yearn Dev Docs
+# Contributing to Platypus Finance Core
 
 Thanks for taking the time to contribute to the Platypus Finance!
 
