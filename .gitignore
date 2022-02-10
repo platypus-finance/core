@@ -1,0 +1,20 @@
+# JS
+node_modules
+yarn-error.log
+typechain
+
+# Test
+coverage/
+coverage.json
+
+# Hardhat files
+cache
+artifacts
+src/types/
+build
+.openzeppelin
+
+# Mac files
+.DS_Store
+.vscode
+.vscode/launch.json
