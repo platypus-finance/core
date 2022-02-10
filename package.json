@@ -3,6 +3,21 @@
   "version": "1.0.1",
   "main": "index.js",
   "license": "BUSL-1.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "platypus",
+    "core",
+    "avalanche"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/platypus-finance/core"
+  },
+  "engines": {
+    "node": ">=14"
+  },
   "devDependencies": {
     "@chainlink/contracts": "^0.3.0",
     "@hardhat-docgen/core": "^1.2.3",
