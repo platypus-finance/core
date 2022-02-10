@@ -7,7 +7,7 @@
 Core smart contracts of Platypus Finance. 
 
 Before getting started with this repo, please read:
-* The [Platypus docs](https://platypus-finance.gitbook.io/platypus-finance-docs/)
+* The [Platypus docs](https://docs.platypus.finance/)
 * The [Platypus AMM yellow paper](https://cdn.platypus.finance/Platypus_AMM_Yellow_Paper.pdf)
 * The [Platypus liquidity mining yellow paper](https://cdn.platypus.finance/Platypus_Liquidity_Mining_Paper.pdf)
 
