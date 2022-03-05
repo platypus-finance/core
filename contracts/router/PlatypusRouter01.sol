@@ -115,4 +115,46 @@ contract PlatypusRouter01 is Ownable, ReentrancyGuard, IPlatypusRouter01 {
             haircut += localHaircut;
         }
     }
+
+    /**
+     * @notice Quotes potential outcome of a swap given current tokenPath and poolPath,
+     taking in account slippage and haircut
+     * @dev To be used by frontend
+     * @param tokenPath The initial ERC20 token
+     * @param poolPath The token wanted by user
+     * @param fromAmount The amount to quote
+     * @return potentialOutcome The potential final amount user would receive
+     * @return haircut The total haircut that would be applied
+     */
+    function quotePotentialSwaps(
+        address[] calldata tokenPath,
+        address[] calldata poolPath,
+        uint256 fromAmount
+    ) external view returns (uint256 potentialOutcome, uint256 haircut) {
+        require(fromAmount > 0, 'invalid from amount');
+        require(tokenPath.length >= 2, 'invalid token path');
+        require(poolPath.length == tokenPath.length - 1, 'invalid pool path');
+
+        // haircut of current call
+        uint256 localHaircut;
+        // next from amount, starts with fromAmount in arg
+        uint256 nextFromAmount = fromAmount;
+        // where to send tokens on next step
+
+        for (uint256 i; i < poolPath.length; i++) {
+            // check if we're reaching the beginning or end of the poolPath array
+            if (i != 0) {
+                nextFromAmount = potentialOutcome;
+            }
+
+            // make the swap with the correct arguments
+            (potentialOutcome, localHaircut) = IPool(poolPath[i]).quotePotentialSwap(
+                tokenPath[i],
+                tokenPath[i + 1],
+                nextFromAmount
+            );
+            // increment total haircut
+            haircut += localHaircut;
+        }
+    }
 }
