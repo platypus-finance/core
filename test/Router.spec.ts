@@ -206,6 +206,9 @@ describe('Router01', function () {
       await this.DAI.connect(users[0]).approve(this.router.address, ethers.constants.MaxUint256)
       // await this.USDC.connect(users[0]).approve(this.router.address, ethers.constants.MaxUint256);
 
+      const [quotedAmount] = await this.router
+        .connect(users[0])
+        .quotePotentialSwaps([this.DAI.address, this.USDC.address], [this.pool1.address], parseEther('100'))
       // swap via router
       const receipt = await this.router.connect(users[0]).swapTokensForTokens(
         [this.DAI.address, this.USDC.address],
@@ -222,6 +225,9 @@ describe('Router01', function () {
       const tokenGot = afterToBalance.sub(beforeToBalance)
       expect(tokenSent).to.be.equal(parseEther('-100'))
       expect(tokenGot).to.be.equal(usdc('99.958879'))
+
+      //check if token got is equal to token quoted
+      expect(tokenGot).to.be.equal(quotedAmount)
 
       await expectAssetValues(this.assetDAI, 18, { cash: '10100', liability: '10000' })
       await expectAssetValues(this.assetUSDC1, 6, { cash: '9900.041121', liability: '10000' })
@@ -244,13 +250,20 @@ describe('Router01', function () {
     it('Should swap using 2 pools (DAI -> USDC -> TSD)', async function () {
       const beforeFromBalance = await this.DAI.balanceOf(users[0].address)
       const beforeToBalance = await this.TSD.balanceOf(users[0].address)
-
       await this.DAI.connect(users[0]).approve(this.router.address, ethers.constants.MaxUint256)
 
       expect(await this.assetDAI.cash()).to.be.equal(parseEther('10000'))
       expect(await this.assetUSDC2.cash()).to.be.equal(usdc('10000'))
       expect(await this.assetUSDC1.cash()).to.be.equal(usdc('10000'))
       expect(await this.assetTSD.cash()).to.be.equal(parseEther('10000'))
+
+      const [quoteAmount] = await this.router
+        .connect(users[0])
+        .quotePotentialSwaps(
+          [this.DAI.address, this.USDC.address, this.TSD.address],
+          [this.pool1.address, this.pool2.address],
+          parseEther('100')
+        )
 
       // swap via router
       const receipt = await this.router.connect(users[0]).swapTokensForTokens(
@@ -269,6 +282,9 @@ describe('Router01', function () {
 
       expect(tokenSent).to.be.equal(parseEther('-100'))
       expect(tokenGot).to.be.equal(parseEther('99.917775978300246768'))
+
+      //check if token got is equal to token quoted
+      expect(tokenGot).to.be.equal(quoteAmount)
 
       await expectAssetValues(this.assetDAI, 18, { cash: '10100', liability: '10000' })
       await expectAssetValues(this.assetUSDC1, 6, { cash: '9900.041121', liability: '10000' })
@@ -314,6 +330,14 @@ describe('Router01', function () {
       expect(await this.assetAVAI2.cash()).to.be.equal(parseEther('10000'))
       expect(await this.assetTSD.cash()).to.be.equal(parseEther('10000'))
 
+      const [quoteAmount] = await this.router
+        .connect(users[0])
+        .quotePotentialSwaps(
+          [this.DAI.address, this.USDC.address, this.AVAI.address, this.xUSD.address],
+          [this.pool1.address, this.pool2.address, this.pool3.address],
+          parseEther('100')
+        )
+
       // swap via router
       const receipt = await this.router.connect(users[0]).swapTokensForTokens(
         [this.DAI.address, this.USDC.address, this.AVAI.address, this.xUSD.address],
@@ -331,6 +355,9 @@ describe('Router01', function () {
 
       expect(tokenSent).to.be.equal(parseEther('-100'))
       expect(tokenGot).to.be.equal(parseEther('99.876690318959845749'))
+
+      //check if token got is equal to token quoted
+      expect(tokenGot).to.be.equal(quoteAmount)
 
       await expectAssetValues(this.assetDAI, 18, { cash: '10100', liability: '10000' })
       await expectAssetValues(this.assetUSDC1, 6, { cash: '9900.041121', liability: '10000' })
