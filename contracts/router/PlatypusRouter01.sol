@@ -120,8 +120,8 @@ contract PlatypusRouter01 is Ownable, ReentrancyGuard, IPlatypusRouter01 {
      * @notice Quotes potential outcome of a swap given current tokenPath and poolPath,
      taking in account slippage and haircut
      * @dev To be used by frontend
-     * @param tokenPath The initial ERC20 token
-     * @param poolPath The token wanted by user
+     * @param tokenPath The token swap path
+     * @param poolPath The token pool path
      * @param fromAmount The amount to quote
      * @return potentialOutcome The potential final amount user would receive
      * @return haircut The total haircut that would be applied
