@@ -141,7 +141,7 @@ contract PlatypusRouter01 is Ownable, ReentrancyGuard, IPlatypusRouter01 {
         uint256 nextFromAmount = fromAmount;
         // where to send tokens on next step
 
-        for (uint256 i = 0; i < poolPath.length; i++) {
+        for (uint256 i; i < poolPath.length; i++) {
             // check if we're reaching the beginning or end of the poolPath array
             if (i != 0) {
                 nextFromAmount = potentialOutcome;
