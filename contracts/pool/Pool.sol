@@ -414,7 +414,7 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
         uint256 totalLiability = 0;
 
         // loop on assets
-        for (uint256 i = 0; i < _sizeOfAssetList(); i++) {
+        for (uint256 i; i < _sizeOfAssetList(); ++i) {
             // get token address
             address assetAddress = _getKeyAtIndex(i);
 
