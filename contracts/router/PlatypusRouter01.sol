@@ -27,7 +27,7 @@ contract PlatypusRouter01 is Ownable, ReentrancyGuard, IPlatypusRouter01 {
     /// @param pool to be approved to spend
     /// @dev needs to be done after asset deployment for router to be able to support the tokens
     function approveSpendingByPool(address[] calldata tokens, address pool) external onlyOwner {
-        for (uint256 i; i < tokens.length; i++) {
+        for (uint256 i; i < tokens.length; ++i) {
             IERC20(tokens[i]).approve(pool, type(uint256).max);
         }
     }
@@ -84,7 +84,7 @@ contract PlatypusRouter01 is Ownable, ReentrancyGuard, IPlatypusRouter01 {
         // where to send tokens on next step
         address nextTo;
 
-        for (uint256 i; i < poolPath.length; i++) {
+        for (uint256 i; i < poolPath.length; ++i) {
             // check if we're reaching the beginning or end of the poolPath array
             if (i == 0 && poolPath.length == 1) {
                 // only one element in pool path - simple swap
@@ -141,7 +141,7 @@ contract PlatypusRouter01 is Ownable, ReentrancyGuard, IPlatypusRouter01 {
         uint256 nextFromAmount = fromAmount;
         // where to send tokens on next step
 
-        for (uint256 i; i < poolPath.length; i++) {
+        for (uint256 i; i < poolPath.length; ++i) {
             // check if we're reaching the beginning or end of the poolPath array
             if (i != 0) {
                 nextFromAmount = potentialOutcome;

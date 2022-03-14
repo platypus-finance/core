@@ -42,7 +42,7 @@ contract ChainlinkProxyPriceProvider is IPriceOracleGetter, Ownable {
     /// @param sources The address of the source of each asset
     function internalSetAssetsSources(address[] memory assets, address[] memory sources) internal {
         require(assets.length == sources.length, 'INCONSISTENT_PARAMS_LENGTH');
-        for (uint256 i = 0; i < assets.length; i++) {
+        for (uint256 i; i < assets.length; ++i) {
             // require feed to have 8 decimal precision
             require(AggregatorV3Interface(sources[i]).decimals() == 8, 'feed must have 8 decimals precision');
             _assetsSources[assets[i]] = AggregatorV3Interface(sources[i]);
@@ -74,7 +74,7 @@ contract ChainlinkProxyPriceProvider is IPriceOracleGetter, Ownable {
     /// @param assets The list of assets addresses
     function getAssetsPrices(address[] calldata assets) external view returns (uint256[] memory) {
         uint256[] memory prices = new uint256[](assets.length);
-        for (uint256 i = 0; i < assets.length; i++) {
+        for (uint256 i; i < assets.length; ++i) {
             prices[i] = getAssetPrice(assets[i]);
         }
         return prices;
