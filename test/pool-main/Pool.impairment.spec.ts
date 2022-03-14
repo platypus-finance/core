@@ -10,7 +10,7 @@ import {
   setPriceOracle,
   usdc,
   setupAggregateAccount,
-} from './helpers/helper'
+} from '../helpers/helper'
 
 const { expect } = chai
 chai.use(solidity)

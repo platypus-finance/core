@@ -12,12 +12,13 @@ import {
   expectAssetValues,
   usdc,
   setupAggregateAccount,
-} from './helpers/helper'
+  setupAvaxPool,
+} from '../helpers/helper'
 
 const { expect } = chai
 chai.use(solidity)
 
-describe('Pool', function () {
+describe('AvaxPool', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -38,7 +39,7 @@ describe('Pool', function () {
     this.fiveSecondsSince = this.lastBlockTime + 5 * 1000
     this.fiveSecondsAgo = this.lastBlockTime - 5 * 1000
 
-    const poolSetup = await setupPool(owner)
+    const poolSetup = await setupAvaxPool(owner)
     this.pool = poolSetup.pool
     this.WETH = await TestWAVAX.deploy()
   })
@@ -471,68 +472,6 @@ describe('Pool', function () {
             this.fiveSecondsSince
           )
         ).to.be.ok
-      })
-
-      it('reverts if price deviation is higher than stated amount', async function () {
-        // Set price oracle to show more than 2% deviation between asset prices
-        await setPriceOracle(this.pool, owner, this.lastBlockTime, [
-          { address: this.DAI.address, initialRate: parseUnits('1', 8).toString() },
-          { address: this.USDC.address, initialRate: parseUnits('1.021', 8).toString() },
-        ])
-
-        await expect(
-          this.pool.connect(users[0]).swap(
-            this.USDC.address,
-            this.DAI.address,
-            usdc('100'),
-            parseEther('90'), //expect at least 90% of ideal quoted amount
-            users[0].address,
-            this.fiveSecondsSince
-          )
-        ).to.be.revertedWith('PRICE_DEV')
-
-        // change order
-        await expect(
-          this.pool.connect(users[0]).swap(
-            this.DAI.address,
-            this.USDC.address,
-            parseEther('100'),
-            usdc('90'), //expect at least 90% of ideal quoted amount
-            users[0].address,
-            this.fiveSecondsSince
-          )
-        ).to.be.revertedWith('PRICE_DEV')
-      })
-
-      it('reverts when asset losses peg', async function () {
-        // Set price oracle to show more than 2% deviation between asset prices
-        await setPriceOracle(this.pool, owner, this.lastBlockTime, [
-          { address: this.DAI.address, initialRate: parseUnits('0.8', 8).toString() },
-          { address: this.USDC.address, initialRate: parseUnits('1.01', 8).toString() },
-        ])
-
-        await expect(
-          this.pool.connect(users[0]).swap(
-            this.USDC.address,
-            this.DAI.address,
-            usdc('100'),
-            parseEther('90'), //expect at least 90% of ideal quoted amount
-            users[0].address,
-            this.fiveSecondsSince
-          )
-        ).to.be.revertedWith('PRICE_DEV')
-
-        // change order
-        await expect(
-          this.pool.connect(users[0]).swap(
-            this.DAI.address,
-            this.USDC.address,
-            parseEther('100'),
-            usdc('90'), //expect at least 90% of ideal quoted amount
-            users[0].address,
-            this.fiveSecondsSince
-          )
-        ).to.be.revertedWith('PRICE_DEV')
       })
     })
   })
