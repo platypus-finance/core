@@ -18,6 +18,7 @@ describe('AvaxPool', function () {
   let TestWAVAX: ContractFactory
   let Pool: ContractFactory
   let Asset: ContractFactory
+  let WETHForwarder: ContractFactory
 
   beforeEach(async function () {
     const [first, ...rest] = await ethers.getSigners()
@@ -29,6 +30,7 @@ describe('AvaxPool', function () {
     TestWAVAX = await ethers.getContractFactory('TestWAVAX')
     Pool = await ethers.getContractFactory('PoolAvax')
     Asset = await ethers.getContractFactory('Asset')
+    WETHForwarder = await ethers.getContractFactory('WETHForwarder')
   })
 
   beforeEach(async function () {
@@ -37,24 +39,24 @@ describe('AvaxPool', function () {
     this.fiveSecondsSince = this.lastBlockTime + 5 * 1000
     this.fiveSecondsAgo = this.lastBlockTime - 5 * 1000
 
-    this.TestWAVAX = await TestWAVAX.connect(owner).deploy()
+    this.WETH = await TestWAVAX.connect(owner).deploy()
 
     this.pool = await Pool.connect(owner).deploy()
 
     await this.pool.deployTransaction.wait()
-    await this.pool.connect(owner).initialize(this.TestWAVAX.address)
+    await this.pool.connect(owner).initialize(this.WETH.address)
+
+    this.forwarder = await WETHForwarder.connect(owner).deploy(this.WETH.address)
+    await this.forwarder.deployTransaction.wait()
+
+    await this.forwarder.connect(owner).setPool(this.pool.address)
+    await this.pool.connect(owner).setWETHForwarder(this.forwarder.address)
 
     this.DAI = await TestERC20.connect(owner).deploy('Dai Stablecoin', 'DAI', 18, parseEther('10000000'))
     await this.DAI.deployTransaction.wait()
 
     this.USDC = await TestERC20.deploy('USD Coin', 'USDC', 6, usdc('10000000'))
     await this.USDC.deployTransaction.wait()
-
-    // Set price oracle
-    await setPriceOracle(this.pool, owner, this.lastBlockTime, [
-      { address: this.DAI.address, initialRate: parseUnits('1', 8).toString() },
-      { address: this.USDC.address, initialRate: parseUnits('1', 8).toString() },
-    ])
   })
 
   describe('Asset DAI (18 decimals)', function () {
@@ -634,6 +636,115 @@ describe('AvaxPool', function () {
       expect(receipt)
         .to.emit(this.pool, 'Withdraw')
         .withArgs(users[0].address, this.USDC.address, usdc('50'), usdc('100'), users[0].address)
+    })
+  })
+
+  describe('Asset WETH', function () {
+    beforeEach(async function () {
+      const aggregateName = 'Liquid staking AVAX Aggregate'
+      const aggregateAccount = await setupAggregateAccount(owner, aggregateName, true)
+      await aggregateAccount.deployTransaction.wait()
+
+      this.asset = await Asset.connect(owner).deploy()
+      await this.asset.connect(owner).initialize(this.WETH.address, 'AVAX Asset', 'LP-AVAX', aggregateAccount.address)
+
+      await this.asset.connect(owner).setPool(this.pool.address)
+      await this.pool.connect(owner).addAsset(this.WETH.address, this.asset.address)
+
+      await this.pool.connect(users[0]).depositETH(users[0].address, this.fiveSecondsSince, { value: parseEther('1') })
+    })
+
+    describe('withdrawETH', function () {
+      it('works', async function () {
+        const beforeBalance = await ethers.provider.getBalance(users[1].address)
+        // withdraw to users[1] so can test the exact ETH received (users[0] needs to pay gas)
+        const receipt = await this.pool
+          .connect(users[0])
+          .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsSince)
+        const afterBalance = await ethers.provider.getBalance(users[1].address)
+
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('0.25'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('0.75'))
+
+        expect(receipt)
+          .to.emit(this.pool, 'Withdraw')
+          .withArgs(users[0].address, this.WETH.address, parseEther('0.25'), parseEther('0.25'), users[1].address)
+      })
+
+      it('works with fee (cov > 0.4)', async function () {
+        // Adjust coverage ratio to 0.6
+        await this.asset.connect(owner).setPool(owner.address)
+        await this.asset.connect(owner).removeCash(parseEther('0.4'))
+        await this.asset.connect(owner).transferUnderlyingToken(owner.address, parseEther('0.4'))
+        await this.asset.connect(owner).setPool(this.pool.address)
+        expect((await this.asset.cash()) / (await this.asset.liability())).to.equal(0.6)
+
+        const beforeBalance = await ethers.provider.getBalance(users[1].address)
+        // withdraw to users[1] so can test the exact ETH received (users[0] needs to pay gas)
+        const receipt = await this.pool
+          .connect(users[0])
+          .withdrawETH(parseEther('0.1'), parseEther('0'), users[1].address, this.fiveSecondsSince)
+        const afterBalance = await ethers.provider.getBalance(users[1].address)
+
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('0.099610452959318153'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('0.9'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('0.500389547040681847'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('0.9'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('0.500389547040681847'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('0.9'))
+
+        expect(receipt)
+          .to.emit(this.pool, 'Withdraw')
+          .withArgs(
+            users[0].address,
+            this.WETH.address,
+            parseEther('0.099610452959318153'),
+            parseEther('0.1'),
+            users[1].address
+          )
+      })
+
+      it('reverts if passed deadline', async function () {
+        await expect(
+          this.pool
+            .connect(users[0])
+            .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsAgo),
+          'Platypus: EXPIRED'
+        ).to.be.reverted
+      })
+
+      it('reverts if liquidity provider does not have enough liquidity token', async function () {
+        await this.asset.connect(users[1]).approve(this.pool.address, ethers.constants.MaxUint256)
+        await expect(
+          this.pool
+            .connect(users[1])
+            .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsSince),
+          'ERC20: transfer amount exceeds balance'
+        ).to.be.reverted
+      })
+
+      it('reverts if amount to receive is less than expected', async function () {
+        await expect(
+          this.pool
+            .connect(users[0])
+            .withdrawETH(parseEther('0.25'), parseEther('1'), users[1].address, this.fiveSecondsSince),
+          'Platypus: AMOUNT_TOO_LOW'
+        ).to.be.reverted
+      })
+
+      it('reverts if pool paused', async function () {
+        await this.pool.connect(owner).pause()
+        await expect(
+          this.pool
+            .connect(users[0])
+            .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsSince),
+          'Pausable: paused'
+        ).to.be.reverted
+      })
     })
   })
 })

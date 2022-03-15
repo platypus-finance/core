@@ -19,6 +19,7 @@ describe('AvaxPool', function () {
 
   let Pool: ContractFactory
   let Asset: ContractFactory
+  let WETHForwarder: ContractFactory
 
   beforeEach(async function () {
     const [first, ...rest] = await ethers.getSigners()
@@ -30,6 +31,7 @@ describe('AvaxPool', function () {
     TestWAVAX = await ethers.getContractFactory('TestWAVAX')
     Pool = await ethers.getContractFactory('PoolAvax')
     Asset = await ethers.getContractFactory('Asset')
+    WETHForwarder = await ethers.getContractFactory('WETHForwarder')
   })
 
   beforeEach(async function () {
@@ -42,12 +44,18 @@ describe('AvaxPool', function () {
     // Deploy Pool and initialize
     this.pool = await Pool.deploy()
 
-    this.TestWAVAX = await TestWAVAX.deploy()
+    this.WETH = await TestWAVAX.deploy()
 
     // Wait for transaction to be mined
     await this.pool.deployTransaction.wait()
 
-    await this.pool.connect(owner).initialize(this.TestWAVAX.address)
+    await this.pool.connect(owner).initialize(this.WETH.address)
+
+    this.forwarder = await WETHForwarder.connect(owner).deploy(this.WETH.address)
+    await this.forwarder.deployTransaction.wait()
+
+    await this.forwarder.connect(owner).setPool(this.pool.address)
+    await this.pool.connect(owner).setWETHForwarder(this.forwarder.address)
   })
 
   describe('Asset DAI (18 decimals)', function () {
@@ -348,6 +356,86 @@ describe('AvaxPool', function () {
         expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('200'))
         expect(await this.asset.balanceOf(users[1].address)).to.be.equal(parseEther('0.0000000001'))
         expect(await this.asset.totalSupply()).to.be.equal(parseEther('0.0000000002'))
+      })
+    })
+  })
+
+  describe('Asset WETH', function () {
+    beforeEach(async function () {
+      const aggregateName = 'Liquid staking AVAX Aggregate'
+      const aggregateAccount = await setupAggregateAccount(owner, aggregateName, true)
+      await aggregateAccount.deployTransaction.wait()
+
+      this.asset = await Asset.deploy()
+      this.asset.connect(owner)
+      await this.asset.connect(owner).initialize(this.WETH.address, 'AVAX Asset', 'LP-AVAX', aggregateAccount.address)
+
+      await this.asset.connect(owner).setPool(this.pool.address)
+      await this.pool.connect(owner).addAsset(this.WETH.address, this.asset.address)
+    })
+
+    describe('depositETH', function () {
+      it('works', async function () {
+        const receipt = await this.pool.connect(users[0]).depositETH(users[1].address, this.fiveSecondsSince, {
+          value: parseEther('1.83'),
+        })
+
+        expect(await this.asset.cash()).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.balanceOf(users[1].address)).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('1.83'))
+
+        await expect(receipt)
+          .to.emit(this.pool, 'Deposit')
+          .withArgs(users[0].address, this.WETH.address, parseEther('1.83'), parseEther('1.83'), users[1].address)
+      })
+
+      it('maintains the LP token supply and liability ratio', async function () {
+        await this.pool.connect(users[0]).depositETH(users[1].address, this.fiveSecondsSince, {
+          value: parseEther('1.83'),
+        })
+        // Add dividend
+        await this.asset.connect(owner).setPool(owner.address)
+        await this.asset.connect(owner).addLiability(parseEther('0.01768743'))
+        await this.asset.connect(owner).setPool(this.pool.address)
+
+        expect((await this.asset.liability()) / (await this.asset.totalSupply())).to.equal(1.009665262295082)
+
+        const receipt = await this.pool.connect(users[1]).depositETH(users[2].address, this.fiveSecondsSince, {
+          value: parseEther('1.17'),
+        })
+        expect(await this.asset.liability()).to.be.equal(parseEther('3.01768743'))
+        expect(await this.asset.balanceOf(users[2].address)).to.be.equal(parseEther('1.158799895066667201'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('2.988799895066667201'))
+        expect((await this.asset.liability()) / (await this.asset.totalSupply())).to.equal(1.0096652622950821)
+
+        await expect(receipt)
+          .to.emit(this.pool, 'Deposit')
+          .withArgs(
+            users[1].address,
+            this.WETH.address,
+            parseEther('1.17'),
+            parseEther('1.158799895066667201'),
+            users[2].address
+          )
+      })
+
+      it('reverts if passed deadline', async function () {
+        await expect(
+          this.pool.connect(users[0]).depositETH(users[0].address, this.fiveSecondsAgo, { value: parseEther('1.83') }),
+          'Platypus: EXPIRED'
+        ).to.be.reverted
+      })
+
+      it('reverts if pool paused', async function () {
+        await this.pool.connect(owner).pause()
+        await expect(
+          this.pool
+            .connect(users[0])
+            .depositETH(users[0].address, this.fiveSecondsSince, { value: parseEther('1.83') }),
+          'Pausable: paused'
+        ).to.be.reverted
       })
     })
   })
