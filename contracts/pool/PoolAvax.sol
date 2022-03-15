@@ -503,6 +503,27 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         emit Deposit(msg.sender, token, amount, liquidity, to);
     }
 
+    function depositETH(address to, uint256 deadline)
+        external
+        payable
+        ensure(deadline)
+        nonReentrant
+        whenNotPaused
+        returns (uint256 liquidity)
+    {
+        uint256 amount = msg.value;
+        require(amount > 0, 'PTP:ZERO_VALUE');
+
+        IERC20 erc20 = IERC20(weth);
+        Asset asset = _assetOf(weth);
+
+        IWETH(weth).deposit{value: amount}();
+        erc20.safeTransfer(address(asset), amount);
+        liquidity = _deposit(asset, amount, to);
+
+        emit Deposit(msg.sender, weth, amount, liquidity, to);
+    }
+
     /**
      * @notice Calculates fee and liability to burn in case of withdrawal
      * @param asset The asset willing to be withdrawn
@@ -607,6 +628,20 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         emit Withdraw(msg.sender, token, amount, liquidity, to);
     }
 
+    function withdrawETH(
+        uint256 liquidity,
+        uint256 minimumAmount,
+        address payable to,
+        uint256 deadline
+    ) external ensure(deadline) nonReentrant whenNotPaused returns (uint256 amount) {
+        Asset asset = _assetOf(weth);
+        // Withdraw WETH to WETHForwarder for conversion and transfer
+        amount = _withdraw(asset, liquidity, minimumAmount, address(wethForwarder));
+        wethForwarder.unwrapAndTransfer(to, amount);
+
+        emit Withdraw(msg.sender, weth, amount, liquidity, to);
+    }
+
     /**
      * @notice Enables withdrawing liquidity from an asset using LP from a different asset in the same aggregate
      * @param initialToken The corresponding token user holds the LP (Asset) from
@@ -618,6 +653,7 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
      * @dev initialToken and wantedToken assets' must be in the same aggregate
      * @dev Also, cov of wantedAsset must be higher than 1 after withdrawal for this to be accepted
      * @return amount The total amount withdrawn
+     * TODO : add withdrawInAVAX function
      */
     function withdrawFromOtherAsset(
         address initialToken,
