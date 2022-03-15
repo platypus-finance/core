@@ -3,15 +3,15 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { BigNumber, ContractFactory } from 'ethers'
-import { setPriceOracle, setupPool, usdc } from './helpers/helper'
+import { setPriceOracle, setupAvaxPool, usdc } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { assert } from 'chai'
-import { setupAggregateAccount } from './helpers/helper'
+import { setupAggregateAccount } from '../helpers/helper'
 
 const { expect } = chai
 chai.use(solidity)
 
-describe('Pool', function () {
+describe('AvaxPool', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -31,7 +31,7 @@ describe('Pool', function () {
     const TestWAVAX = await ethers.getContractFactory('TestWAVAX')
 
     // Deploy and initialize pool
-    const poolSetup = await setupPool(owner)
+    const poolSetup = await setupAvaxPool(owner)
     this.pool = poolSetup.pool
     this.WETH = await TestWAVAX.deploy()
     this.lastBlock = await ethers.provider.getBlock('latest')
@@ -102,6 +102,15 @@ describe('Pool', function () {
           .connect(users[0])
           .setSlippageParams(parseEther('0.1'), BigNumber.from('9'), parseEther('0.5'), parseEther('0.4'))
       ).to.be.reverted
+    })
+
+    it('sets and gets WETHForwarder', async function () {
+      // gets WETHForwarder
+      assert.exists(await this.pool.connect(owner).wethForwarder(), 'Param OK')
+
+      // Can set WETHForwarder
+      await this.pool.connect(owner).setWETHForwarder('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
+      expect(await this.pool.connect(owner).wethForwarder()).to.be.equal('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
     })
 
     it('Should revert if slippage params are set outside out of their boundaries', async function () {

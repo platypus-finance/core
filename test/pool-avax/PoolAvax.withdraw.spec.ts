@@ -2,22 +2,23 @@ import { ethers } from 'hardhat'
 import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
-import { setPriceOracle, usdc } from './helpers/helper'
+import { setPriceOracle, usdc } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { ContractFactory } from '@ethersproject/contracts'
-import { setupAggregateAccount } from './helpers/helper'
+import { setupAggregateAccount } from '../helpers/helper'
 import { parseUnits } from 'ethers/lib/utils'
 
 const { expect } = chai
 chai.use(solidity)
 
-describe('Pool', function () {
+describe('AvaxPool', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
   let TestWAVAX: ContractFactory
   let Pool: ContractFactory
   let Asset: ContractFactory
+  let WETHForwarder: ContractFactory
 
   beforeEach(async function () {
     const [first, ...rest] = await ethers.getSigners()
@@ -27,8 +28,9 @@ describe('Pool', function () {
     // Get contracts for TestERC20, Pool, Asset
     TestERC20 = await ethers.getContractFactory('TestERC20')
     TestWAVAX = await ethers.getContractFactory('TestWAVAX')
-    Pool = await ethers.getContractFactory('Pool')
+    Pool = await ethers.getContractFactory('PoolAvax')
     Asset = await ethers.getContractFactory('Asset')
+    WETHForwarder = await ethers.getContractFactory('WETHForwarder')
   })
 
   beforeEach(async function () {
@@ -37,24 +39,24 @@ describe('Pool', function () {
     this.fiveSecondsSince = this.lastBlockTime + 5 * 1000
     this.fiveSecondsAgo = this.lastBlockTime - 5 * 1000
 
-    this.TestWAVAX = await TestWAVAX.connect(owner).deploy()
+    this.WETH = await TestWAVAX.connect(owner).deploy()
 
     this.pool = await Pool.connect(owner).deploy()
 
     await this.pool.deployTransaction.wait()
-    await this.pool.connect(owner).initialize()
+    await this.pool.connect(owner).initialize(this.WETH.address)
+
+    this.forwarder = await WETHForwarder.connect(owner).deploy(this.WETH.address)
+    await this.forwarder.deployTransaction.wait()
+
+    await this.forwarder.connect(owner).setPool(this.pool.address)
+    await this.pool.connect(owner).setWETHForwarder(this.forwarder.address)
 
     this.DAI = await TestERC20.connect(owner).deploy('Dai Stablecoin', 'DAI', 18, parseEther('10000000'))
     await this.DAI.deployTransaction.wait()
 
     this.USDC = await TestERC20.deploy('USD Coin', 'USDC', 6, usdc('10000000'))
     await this.USDC.deployTransaction.wait()
-
-    // Set price oracle
-    await setPriceOracle(this.pool, owner, this.lastBlockTime, [
-      { address: this.DAI.address, initialRate: parseUnits('1', 8).toString() },
-      { address: this.USDC.address, initialRate: parseUnits('1', 8).toString() },
-    ])
   })
 
   describe('Asset DAI (18 decimals)', function () {
@@ -150,11 +152,11 @@ describe('Pool', function () {
         // check that quoted withdrawal is the same as amount withdrawn
         expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
 
-        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('5.961045295931815300'))
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('9.961045295931815300'))
         expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('90'))
-        expect(await this.asset.cash()).to.be.equal(parseEther('54.038954704068184700'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('50.038954704068184700'))
         expect(await this.asset.liability()).to.be.equal(parseEther('90'))
-        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('54.038954704068184700'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('50.038954704068184700'))
         expect(await this.asset.totalSupply()).to.be.equal(parseEther('90'))
 
         expect(receipt)
@@ -162,20 +164,20 @@ describe('Pool', function () {
           .withArgs(
             users[0].address,
             this.DAI.address,
-            parseEther('5.961045295931815300'),
+            parseEther('9.961045295931815300'),
             parseEther('10'),
             users[1].address
           )
       })
 
-      it('works with fee (cov < 0.4) - fees overcome withdrawn amount', async function () {
-        // Adjust coverage ratio to 0.3
+      it('works with fee (cov < 0.4) ~ 0.1', async function () {
+        // Adjust coverage ratio to 0.1
         await this.asset.connect(owner).setPool(owner.address)
-        await this.asset.connect(owner).removeCash(parseEther('70'))
-        await this.asset.connect(owner).transferUnderlyingToken(owner.address, parseEther('70'))
+        await this.asset.connect(owner).removeCash(parseEther('90'))
+        await this.asset.connect(owner).transferUnderlyingToken(owner.address, parseEther('90'))
         await this.asset.connect(owner).setPool(this.pool.address)
         // console.log(`Cash : ${await this.asset.cash()}, Liabilities ${await this.asset.liability()}`)
-        expect((await this.asset.cash()) / (await this.asset.liability())).to.equal(0.3)
+        expect((await this.asset.cash()) / (await this.asset.liability())).to.equal(0.1)
 
         const beforeBalance = await this.DAI.balanceOf(users[0].address)
         const [quotedWithdrawal] = await this.pool.quotePotentialWithdraw(this.DAI.address, parseEther('10'))
@@ -187,16 +189,22 @@ describe('Pool', function () {
         const afterBalance = await this.DAI.balanceOf(users[0].address)
 
         expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
-        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('0'))
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('3.769076105999983080'))
         expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('90'))
-        expect(await this.asset.cash()).to.be.equal(parseEther('30'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('6.230923894000016920'))
         expect(await this.asset.liability()).to.be.equal(parseEther('90'))
-        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('30'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('6.230923894000016920'))
         expect(await this.asset.totalSupply()).to.be.equal(parseEther('90'))
 
         expect(receipt)
           .to.emit(this.pool, 'Withdraw')
-          .withArgs(users[0].address, this.DAI.address, parseEther('0'), parseEther('10'), users[0].address)
+          .withArgs(
+            users[0].address,
+            this.DAI.address,
+            parseEther('3.769076105999983080'),
+            parseEther('10'),
+            users[0].address
+          )
       })
 
       it('works without fee (cov >= 1)', async function () {
@@ -254,11 +262,11 @@ describe('Pool', function () {
 
         expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
 
-        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('7.382479340932359832'))
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('10.880404948535600741'))
         expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('89.108776136369965982'))
-        expect(await this.asset.cash()).to.be.equal(parseEther('60.500601097032434658'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('57.002675489429193749'))
         expect(await this.asset.liability()).to.be.equal(parseEther('89.108776136369965982'))
-        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('60.500601097032434658'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('57.002675489429193749'))
         expect(await this.asset.totalSupply()).to.be.equal(parseEther('89.108776136369965982'))
       })
 
@@ -345,7 +353,7 @@ describe('Pool', function () {
 
           const [actualAmount, fee] = await this.pool.quotePotentialWithdraw(this.DAI.address, parseEther('10'))
 
-          expect(actualAmount).to.be.equal(parseEther('5.952021626845652896'))
+          expect(actualAmount).to.be.equal(parseEther('10.128896004495631295'))
           expect(fee).to.be.equal(parseEther('0.047978373154347099'))
         })
 
@@ -421,16 +429,16 @@ describe('Pool', function () {
         const afterBalance = await this.USDC.balanceOf(users[1].address)
         expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
         expect(enoughCash).to.be.true
-        expect(afterBalance.sub(beforeBalance)).to.be.equal(usdc('5.961045'))
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(usdc('9.961045'))
         expect(await this.asset.balanceOf(users[0].address)).to.be.equal(usdc('90'))
-        expect(await this.asset.cash()).to.be.equal(usdc('54.038955'))
+        expect(await this.asset.cash()).to.be.equal(usdc('50.038955'))
         expect(await this.asset.liability()).to.be.equal(usdc('90'))
-        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('54.038955'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('50.038955'))
         expect(await this.asset.totalSupply()).to.be.equal(usdc('90'))
 
         expect(receipt)
           .to.emit(this.pool, 'Withdraw')
-          .withArgs(users[0].address, this.USDC.address, usdc('5.961045'), usdc('10'), users[1].address)
+          .withArgs(users[0].address, this.USDC.address, usdc('9.961045'), usdc('10'), users[1].address)
       })
 
       it('works with fee (cov < 0.4)', async function () {
@@ -449,17 +457,17 @@ describe('Pool', function () {
           .withdraw(this.USDC.address, usdc('10'), usdc('0'), users[0].address, this.fiveSecondsSince)
         const afterBalance = await this.USDC.balanceOf(users[0].address)
 
-        expect(enoughCash).to.be.false
+        expect(enoughCash).to.be.true
         expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
-        expect(afterBalance.sub(beforeBalance)).to.be.equal(usdc('0'))
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(usdc('3.769076'))
         expect(await this.asset.balanceOf(users[0].address)).to.be.equal(usdc('90'))
-        expect(await this.asset.cash()).to.be.equal(usdc('30.000000'))
+        expect(await this.asset.cash()).to.be.equal(usdc('26.230924'))
         expect(await this.asset.liability()).to.be.equal(usdc('90'))
-        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('30.000000'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('26.230924'))
         expect(await this.asset.totalSupply()).to.be.equal(usdc('90'))
         expect(receipt)
           .to.emit(this.pool, 'Withdraw')
-          .withArgs(users[0].address, this.USDC.address, usdc('0'), usdc('10'), users[0].address)
+          .withArgs(users[0].address, this.USDC.address, usdc('3.769076'), usdc('10'), users[0].address)
       })
 
       it('works with fee (cov = 0.5)', async function () {
@@ -485,16 +493,16 @@ describe('Pool', function () {
 
         expect(enoughCash).to.be.true
         expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
-        expect(fee).to.be.equal(usdc('43.591381'))
-        expect(withdrawnAmount).to.be.equal(usdc('6.408619'))
+        expect(fee).to.be.equal(usdc('18.591381'))
+        expect(withdrawnAmount).to.be.equal(usdc('31.408619'))
         expect(await this.asset.balanceOf(users[0].address)).to.be.equal(usdc('50'))
-        expect(await this.asset.cash()).to.be.equal(usdc('43.591381'))
+        expect(await this.asset.cash()).to.be.equal(usdc('18.591381'))
         expect(await this.asset.liability()).to.be.equal(usdc('50'))
-        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('43.591381'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('18.591381'))
         expect(await this.asset.totalSupply()).to.be.equal(usdc('50'))
         expect(receipt)
           .to.emit(this.pool, 'Withdraw')
-          .withArgs(users[0].address, this.USDC.address, usdc('6.408619'), usdc('50'), users[0].address)
+          .withArgs(users[0].address, this.USDC.address, usdc('31.408619'), usdc('50'), users[0].address)
       })
 
       it('works without fee (cov >= 1)', async function () {
@@ -543,11 +551,11 @@ describe('Pool', function () {
         expect(enoughCash).to.be.true
         expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
 
-        expect(afterBalance.sub(beforeBalance)).to.be.equal(usdc('7.258856'))
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(usdc('10.802702'))
         expect(await this.asset.balanceOf(users[0].address)).to.be.equal(usdc('89.185287'))
-        expect(await this.asset.cash()).to.be.equal(usdc('59.972401'))
+        expect(await this.asset.cash()).to.be.equal(usdc('56.428555'))
         expect(await this.asset.liability()).to.be.equal(usdc('89.185287'))
-        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('59.972401'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(usdc('56.428555'))
         expect(await this.asset.totalSupply()).to.be.equal(usdc('89.185287'))
       })
     })
@@ -628,6 +636,115 @@ describe('Pool', function () {
       expect(receipt)
         .to.emit(this.pool, 'Withdraw')
         .withArgs(users[0].address, this.USDC.address, usdc('50'), usdc('100'), users[0].address)
+    })
+  })
+
+  describe('Asset WETH', function () {
+    beforeEach(async function () {
+      const aggregateName = 'Liquid staking AVAX Aggregate'
+      const aggregateAccount = await setupAggregateAccount(owner, aggregateName, true)
+      await aggregateAccount.deployTransaction.wait()
+
+      this.asset = await Asset.connect(owner).deploy()
+      await this.asset.connect(owner).initialize(this.WETH.address, 'AVAX Asset', 'LP-AVAX', aggregateAccount.address)
+
+      await this.asset.connect(owner).setPool(this.pool.address)
+      await this.pool.connect(owner).addAsset(this.WETH.address, this.asset.address)
+
+      await this.pool.connect(users[0]).depositETH(users[0].address, this.fiveSecondsSince, { value: parseEther('1') })
+    })
+
+    describe('withdrawETH', function () {
+      it('works', async function () {
+        const beforeBalance = await ethers.provider.getBalance(users[1].address)
+        // withdraw to users[1] so can test the exact ETH received (users[0] needs to pay gas)
+        const receipt = await this.pool
+          .connect(users[0])
+          .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsSince)
+        const afterBalance = await ethers.provider.getBalance(users[1].address)
+
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('0.25'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('0.75'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('0.75'))
+
+        expect(receipt)
+          .to.emit(this.pool, 'Withdraw')
+          .withArgs(users[0].address, this.WETH.address, parseEther('0.25'), parseEther('0.25'), users[1].address)
+      })
+
+      it('works with fee (cov > 0.4)', async function () {
+        // Adjust coverage ratio to 0.6
+        await this.asset.connect(owner).setPool(owner.address)
+        await this.asset.connect(owner).removeCash(parseEther('0.4'))
+        await this.asset.connect(owner).transferUnderlyingToken(owner.address, parseEther('0.4'))
+        await this.asset.connect(owner).setPool(this.pool.address)
+        expect((await this.asset.cash()) / (await this.asset.liability())).to.equal(0.6)
+
+        const beforeBalance = await ethers.provider.getBalance(users[1].address)
+        // withdraw to users[1] so can test the exact ETH received (users[0] needs to pay gas)
+        const receipt = await this.pool
+          .connect(users[0])
+          .withdrawETH(parseEther('0.1'), parseEther('0'), users[1].address, this.fiveSecondsSince)
+        const afterBalance = await ethers.provider.getBalance(users[1].address)
+
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('0.099610452959318153'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('0.9'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('0.500389547040681847'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('0.9'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('0.500389547040681847'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('0.9'))
+
+        expect(receipt)
+          .to.emit(this.pool, 'Withdraw')
+          .withArgs(
+            users[0].address,
+            this.WETH.address,
+            parseEther('0.099610452959318153'),
+            parseEther('0.1'),
+            users[1].address
+          )
+      })
+
+      it('reverts if passed deadline', async function () {
+        await expect(
+          this.pool
+            .connect(users[0])
+            .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsAgo),
+          'Platypus: EXPIRED'
+        ).to.be.reverted
+      })
+
+      it('reverts if liquidity provider does not have enough liquidity token', async function () {
+        await this.asset.connect(users[1]).approve(this.pool.address, ethers.constants.MaxUint256)
+        await expect(
+          this.pool
+            .connect(users[1])
+            .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsSince),
+          'ERC20: transfer amount exceeds balance'
+        ).to.be.reverted
+      })
+
+      it('reverts if amount to receive is less than expected', async function () {
+        await expect(
+          this.pool
+            .connect(users[0])
+            .withdrawETH(parseEther('0.25'), parseEther('1'), users[1].address, this.fiveSecondsSince),
+          'Platypus: AMOUNT_TOO_LOW'
+        ).to.be.reverted
+      })
+
+      it('reverts if pool paused', async function () {
+        await this.pool.connect(owner).pause()
+        await expect(
+          this.pool
+            .connect(users[0])
+            .withdrawETH(parseEther('0.25'), parseEther('0.25'), users[1].address, this.fiveSecondsSince),
+          'Pausable: paused'
+        ).to.be.reverted
+      })
     })
   })
 })
