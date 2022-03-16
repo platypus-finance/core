@@ -1,16 +1,13 @@
 import { ethers } from 'hardhat'
-import { parseEther, parseUnits } from '@ethersproject/units'
+import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { BigNumber, constants, ContractFactory } from 'ethers'
 import {
-  setupPool,
   createAndInitializeToken,
   fundUserAndApprovePool,
-  setPriceOracle,
   expectAssetValues,
-  usdc,
   setupAggregateAccount,
   setupAvaxPool,
 } from '../helpers/helper'

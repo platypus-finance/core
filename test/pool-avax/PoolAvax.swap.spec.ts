@@ -5,7 +5,6 @@ import { solidity } from 'ethereum-waffle'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { ContractFactory } from 'ethers'
 import {
-  setupPool,
   createAndInitializeToken,
   fundUserAndApprovePool,
   setPriceOracle,
