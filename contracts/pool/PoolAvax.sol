@@ -30,6 +30,7 @@ import '../interfaces/IWETHForwarder.sol';
  * removed impairment loss/gain on withdrawals/deposits
  * removed _checkPriceDeviation (chainlink peg check)
  * added weth and wethforwarder
+ * added swapFromETH, swapToETH, depositETH, withdrawETH
  */
 contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
     using DSMath for uint256;
@@ -771,6 +772,9 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         Asset fromAsset = _assetOf(fromToken);
         require(address(fromAsset) != address(0), 'PTP:ASSET_NOT_EXIST');
         Asset toAsset = _assetOf(weth);
+
+        require(toAsset.aggregateAccount() == fromAsset.aggregateAccount(), 'DIFF_AGG_ACC');
+
         (uint256 actualToAmount, uint256 haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
         require(minimumToAmount <= actualToAmount, 'PTP:AMOUNT_TOO_LOW');
 
@@ -798,6 +802,8 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         Asset fromAsset = _assetOf(weth);
         Asset toAsset = _assetOf(toToken);
         require(address(toAsset) != address(0), 'PTP:ASSET_NOT_EXIST');
+        require(toAsset.aggregateAccount() == fromAsset.aggregateAccount(), 'DIFF_AGG_ACC');
+
         (uint256 actualToAmount, uint256 haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
         require(minimumToAmount <= actualToAmount, 'PTP:AMOUNT_TOO_LOW');
 
