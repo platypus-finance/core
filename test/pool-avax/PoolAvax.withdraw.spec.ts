@@ -2,11 +2,10 @@ import { ethers } from 'hardhat'
 import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
-import { setPriceOracle, usdc } from '../helpers/helper'
+import { usdc } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { ContractFactory } from '@ethersproject/contracts'
 import { setupAggregateAccount } from '../helpers/helper'
-import { parseUnits } from 'ethers/lib/utils'
 
 const { expect } = chai
 chai.use(solidity)

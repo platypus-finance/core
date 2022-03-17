@@ -30,6 +30,7 @@ import '../interfaces/IWETHForwarder.sol';
  * removed impairment loss/gain on withdrawals/deposits
  * removed _checkPriceDeviation (chainlink peg check)
  * added weth and wethforwarder
+ * added swapFromETH, swapToETH, depositETH, withdrawETH
  */
 contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
     using DSMath for uint256;
@@ -628,6 +629,14 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         emit Withdraw(msg.sender, token, amount, liquidity, to);
     }
 
+    /**
+     * @notice Withdraws ETH liquidity amount of asset to `to` address ensuring minimum amount required
+     * @param liquidity The liquidity to be withdrawn
+     * @param minimumAmount The minimum amount that will be accepted by user
+     * @param to The user receiving the withdrawal
+     * @param deadline The deadline to be respected
+     * @return amount The total amount withdrawn
+     */
     function withdrawETH(
         uint256 liquidity,
         uint256 minimumAmount,
@@ -644,6 +653,7 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
 
     /**
      * @notice Enables withdrawing liquidity from an asset using LP from a different asset in the same aggregate
+     * @dev supports weth assets
      * @param initialToken The corresponding token user holds the LP (Asset) from
      * @param wantedToken The token wanting to be withdrawn (needs to be well covered)
      * @param liquidity The liquidity to be withdrawn (in wanted token d.p.)
@@ -653,7 +663,6 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
      * @dev initialToken and wantedToken assets' must be in the same aggregate
      * @dev Also, cov of wantedAsset must be higher than 1 after withdrawal for this to be accepted
      * @return amount The total amount withdrawn
-     * TODO : add withdrawInAVAX function
      */
     function withdrawFromOtherAsset(
         address initialToken,
@@ -708,7 +717,13 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         initialAsset.burn(address(initialAsset), liquidityInInitialAssetDP);
         initialAsset.removeLiability(liabilityToBurn); // remove liability from initial asset
         wantedAsset.removeCash(amount); // remove cash from wanted asset
-        wantedAsset.transferUnderlyingToken(to, amount); // transfer wanted token to user
+
+        if (wantedToken == weth) {
+            wantedAsset.transferUnderlyingToken(address(wethForwarder), amount);
+            wethForwarder.unwrapAndTransfer(payable(to), amount);
+        } else {
+            wantedAsset.transferUnderlyingToken(to, amount); // transfer wanted token to user
+        }
 
         emit Withdraw(msg.sender, wantedToken, amount, liquidityInInitialAssetDP, to);
     }
@@ -757,13 +772,23 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         emit Swap(msg.sender, fromToken, toToken, fromAmount, actualToAmount, to);
     }
 
+    /**
+     * @notice Swap fromToken for ETH, ensures deadline and minimumToAmount and sends quoted amount to `to` address
+     * @param fromToken The token being inserted into Pool by user for swap
+     * @param fromAmount The amount of from token inserted
+     * @param minimumToAmount The minimum amount that will be accepted by user as result
+     * @param to The user receiving the result of swap
+     * @param deadline The deadline to be respected
+     * @return actualToAmount The actual amount user receive
+     * @return haircut The haircut that would be applied
+     */
     function swapToETH(
         address fromToken,
         uint256 fromAmount,
         uint256 minimumToAmount,
         address payable to,
         uint256 deadline
-    ) external ensure(deadline) nonReentrant whenNotPaused {
+    ) external ensure(deadline) nonReentrant whenNotPaused returns (uint256 actualToAmount, uint256 haircut) {
         require(fromToken != address(0), 'PTP:ZERO_ADDRESS');
         require(fromToken != weth, 'PTP:SAME_ADDRESS');
 
@@ -771,7 +796,10 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         Asset fromAsset = _assetOf(fromToken);
         require(address(fromAsset) != address(0), 'PTP:ASSET_NOT_EXIST');
         Asset toAsset = _assetOf(weth);
-        (uint256 actualToAmount, uint256 haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
+
+        require(toAsset.aggregateAccount() == fromAsset.aggregateAccount(), 'DIFF_AGG_ACC');
+
+        (actualToAmount, haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
         require(minimumToAmount <= actualToAmount, 'PTP:AMOUNT_TOO_LOW');
 
         fromERC20.safeTransferFrom(address(msg.sender), address(fromAsset), fromAmount);
@@ -784,12 +812,21 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         emit Swap(msg.sender, fromToken, weth, fromAmount, actualToAmount, to);
     }
 
+    /**
+     * @notice Swap ETH for toToken, ensures deadline and minimumToAmount and sends quoted amount to `to` address
+     * @param toToken The token being inserted into Pool by user for swap
+     * @param minimumToAmount The minimum amount that will be accepted by user as result
+     * @param to The user receiving the result of swap
+     * @param deadline The deadline to be respected
+     * @return actualToAmount The actual amount user receive
+     * @return haircut The haircut that would be applied
+     */
     function swapFromETH(
         address toToken,
         uint256 minimumToAmount,
         address to,
         uint256 deadline
-    ) external payable ensure(deadline) nonReentrant whenNotPaused {
+    ) external payable ensure(deadline) nonReentrant whenNotPaused returns (uint256 actualToAmount, uint256 haircut) {
         require(toToken != address(0), 'PTP:ZERO_ADDRESS');
         require(toToken != weth, 'PTP:SAME_ADDRESS');
 
@@ -798,7 +835,9 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         Asset fromAsset = _assetOf(weth);
         Asset toAsset = _assetOf(toToken);
         require(address(toAsset) != address(0), 'PTP:ASSET_NOT_EXIST');
-        (uint256 actualToAmount, uint256 haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
+        require(toAsset.aggregateAccount() == fromAsset.aggregateAccount(), 'DIFF_AGG_ACC');
+
+        (actualToAmount, haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
         require(minimumToAmount <= actualToAmount, 'PTP:AMOUNT_TOO_LOW');
 
         IWETH(weth).deposit{value: fromAmount}();
