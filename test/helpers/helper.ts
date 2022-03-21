@@ -49,6 +49,19 @@ export const setupPool = async (owner: Signer): Promise<{ pool: Contract }> => {
   return { pool }
 }
 
+export const setupSecondaryPool = async (owner: Signer): Promise<{ pool: Contract }> => {
+  Pool = await ethers.getContractFactory('PoolSecondary')
+
+  const pool = await Pool.connect(owner).deploy()
+
+  // Wait for contract to be deployed
+  await pool.deployTransaction.wait()
+
+  await pool.connect(owner).initialize()
+  return { pool }
+}
+
+
 export const setupAvaxPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
   PoolAvax = await ethers.getContractFactory('PoolAvax')
   WETHForwarder = await ethers.getContractFactory('WETHForwarder')
