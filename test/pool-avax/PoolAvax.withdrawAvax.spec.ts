@@ -236,8 +236,42 @@ describe('AvaxPool', function () {
           'Pausable: paused'
         ).to.be.reverted
       })
+
+      it('only burn liability if fee is >= liabilityToBurn', async function () {
+        // Adjust coverage ratio to 0.3
+        await this.asset.connect(owner).setPool(owner.address)
+        await this.asset.connect(owner).removeCash(parseEther('0.7'))
+        await this.asset.connect(owner).transferUnderlyingToken(owner.address, parseEther('0.7'))
+        await this.asset.connect(owner).setPool(this.pool.address)
+        expect((await this.asset.cash()) / (await this.asset.liability())).to.equal(0.3)
+        console.log(`Cash : ${await this.asset.cash()}, Liabilities ${await this.asset.liability()}`)
+
+        const beforeBalance = await ethers.provider.getBalance(users[1].address)
+        const [quotedWithdrawal] = await this.pool.quotePotentialWithdraw(this.WETH.address, parseEther('0.3'))
+
+        const receipt = await this.pool
+          .connect(users[0])
+          .withdrawETH(parseEther('0.1'), parseEther('0'), users[1].address, this.fiveSecondsSince)
+        const afterBalance = await ethers.provider.getBalance(users[1].address)
+
+        // expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
+
+        // expect 0
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('0.037690761059999831'))
+
+        expect(await this.asset.balanceOf(users[1].address)).to.be.equal(parseEther('0'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('0.262309238940000169'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('0.9'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('0.262309238940000169'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('0.9'))
+
+        // shd burn all liability and return amount 0
+        // expect(receipt)
+        //   .to.emit(this.pool, 'Withdraw')
+        //   .withArgs(users[0].address, this.WETH.address, parseEther('0'), parseEther('10'), users[0].address)
+      })
       describe('quotePotentialWithdraw', () => {
-        it('works with fee', async function () {
+        it('works with fee 1/2', async function () {
           // Adjust coverage ratio to around 0.5
           await this.asset.connect(owner).setPool(owner.address)
           await this.asset.connect(owner).removeCash(parseEther('0.5'))
@@ -249,6 +283,32 @@ describe('AvaxPool', function () {
 
           expect(actualAmount).to.be.equal(parseEther('0.009838734523557973'))
           expect(fee).to.be.equal(parseEther('0.000161265476442027'))
+        })
+
+        it('works with fee 2/2', async function () {
+          // Adjust coverage ratio to around 0.44
+          await this.asset.connect(owner).setPool(owner.address)
+          await this.asset.connect(owner).removeCash(parseEther('0.5'))
+          await this.asset.connect(owner).transferUnderlyingToken(owner.address, parseEther('0.5'))
+          await this.asset.connect(owner).addLiability(parseEther('0.1269686'))
+          await this.asset.connect(owner).setPool(this.pool.address)
+          expect((await this.asset.cash()) / (await this.asset.liability())).to.equal(0.44366808445239736)
+
+          const [actualAmount, fee] = await this.pool.quotePotentialWithdraw(this.WETH.address, parseEther('0.01'))
+          const beforeBalance0 = await ethers.provider.getBalance(users[0].address)
+          const beforeBalance1 = await ethers.provider.getBalance(users[1].address)
+          await this.pool
+            .connect(users[0])
+            .withdrawETH(parseEther('0.1'), parseEther('0'), users[1].address, this.fiveSecondsSince)
+          const afterBalance0 = await ethers.provider.getBalance(users[0].address)
+          const afterBalance1 = await ethers.provider.getBalance(users[1].address)
+
+          // gas fee paid by users[0]
+          expect(afterBalance0.sub(beforeBalance0)).to.be.equal(parseEther('-0.000143245001145960'))
+          // amount withdrew
+          expect(afterBalance1.sub(beforeBalance1)).to.be.equal(parseEther('0.102219608469615482'))
+          expect(actualAmount).to.be.equal(parseEther('0.010720619351733528'))
+          expect(fee).to.be.equal(parseEther('0.000549066648266472'))
         })
 
         it('works with 0 fee (cov >= 1)', async function () {
