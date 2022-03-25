@@ -101,13 +101,13 @@ describe('PoolSecondary', function () {
         const tokenGot = afterToBalance.sub(beforeToBalance)
 
         expect(tokenSent).to.be.equal(parseEther('-100'))
-        expect(tokenGot).to.be.equal(usdc('99.958879'))
+        expect(tokenGot).to.be.equal(usdc('99.968879'))
 
         // check if quoted amount is the same to actual amount of token got
         expect(tokenGot).to.be.equal(quotedAmount)
 
         await expectAssetValues(this.assetDAI, 18, { cash: '10100', liability: '10000' })
-        await expectAssetValues(this.assetUSDC, 6, { cash: '9900.041121', liability: '10000' })
+        await expectAssetValues(this.assetUSDC, 6, { cash: '9900.031121', liability: '10000' })
 
         expect(receipt)
           .to.emit(this.pool, 'Swap')
@@ -116,7 +116,7 @@ describe('PoolSecondary', function () {
             this.DAI.address,
             this.USDC.address,
             parseEther('100'),
-            usdc('99.958879'),
+            usdc('99.968879'),
             users[0].address
           )
 
@@ -146,14 +146,14 @@ describe('PoolSecondary', function () {
         const tokenSent = afterFromBalance.sub(beforeFromBalance)
         const tokenGot = afterToBalance.sub(beforeToBalance)
         expect(tokenSent).to.be.equal(usdc('-100'))
-        expect(tokenGot).to.be.equal(parseEther('99.958879607966427888'))
+        expect(tokenGot).to.be.equal(parseEther('99.968879495882390916'))
 
         await expectAssetValues(this.assetUSDC, 6, { cash: '10100', liability: '10000' })
 
         //check if token got is equal to token quoted
         expect(tokenGot).to.be.equal(quotedAmount)
         await expectAssetValues(this.assetDAI, 18, {
-          cash: '9900.041120392033572112',
+          cash: '9900.031120504117609084',
           liability: '10000',
         })
 
@@ -164,7 +164,7 @@ describe('PoolSecondary', function () {
             this.USDC.address,
             this.DAI.address,
             usdc('100'),
-            parseEther('99.958879607966427888'),
+            parseEther('99.968879495882390916'),
             users[0].address
           )
 
@@ -311,7 +311,7 @@ describe('PoolSecondary', function () {
         const tokenSent = afterFromBalance.sub(beforeFromBalance)
         const tokenGot = afterToBalance.sub(beforeToBalance)
         expect(tokenSent).to.be.equal(usdc('-100'))
-        expect(tokenGot).to.be.equal(parseEther('199.905428601463481316'))
+        expect(tokenGot).to.be.equal(parseEther('199.925427143740538487'))
 
         //check if token got is equal to token quoted
         expect(tokenGot).to.be.equal(quotedAmount)
@@ -323,7 +323,7 @@ describe('PoolSecondary', function () {
             this.USDC.address,
             this.DAI.address,
             usdc('100'),
-            parseEther('199.905428601463481316'),
+            parseEther('199.925427143740538487'),
             users[0].address
           )
 
@@ -354,7 +354,7 @@ describe('PoolSecondary', function () {
             this.DAI.address,
             this.USDC.address,
             parseEther('100'),
-            usdc('99.958879'),
+            usdc('99.968879'),
             users[0].address
           )
 
@@ -599,13 +599,13 @@ describe('PoolSecondary', function () {
         const tokenGot = afterToBalance.sub(beforeToBalance)
 
         expect(tokenSent).to.be.equal(parseUnits('-10', 8))
-        expect(tokenGot).to.be.equal(parseUnits('9.99588796', 8))
+        expect(tokenGot).to.be.equal(parseUnits('9.99688795', 8))
 
         // check if tokenGot is equal to the potential quoted amount
         expect(tokenGot).to.be.equal(quotedAmount)
 
         await expectAssetValues(this.assetWBTC, 8, { cash: '1010', liability: '1000' })
-        await expectAssetValues(this.assetWBTCe, 8, { cash: '990.00411204', liability: '1000' })
+        await expectAssetValues(this.assetWBTCe, 8, { cash: '990.00311205', liability: '1000' })
 
         expect(receipt)
           .to.emit(this.pool, 'Swap')
@@ -614,7 +614,7 @@ describe('PoolSecondary', function () {
             this.WBTC.address,
             this.WBTCe.address,
             parseUnits('10', 8),
-            parseUnits('9.99588796', 8),
+            parseUnits('9.99688795', 8),
             users[0].address
           )
 
@@ -648,13 +648,13 @@ describe('PoolSecondary', function () {
         const tokenGot = afterToBalance.sub(beforeToBalance)
 
         expect(tokenSent).to.be.equal(parseUnits('-50', 8))
-        expect(tokenGot).to.be.equal(parseUnits('49.97714806', 8))
+        expect(tokenGot).to.be.equal(parseUnits('49.98214778', 8))
 
         // check if quoted amount is the same to actual amount of token got
         expect(tokenGot).to.be.equal(quotedAmount)
 
         await expectAssetValues(this.assetWBTCe, 8, { cash: '1050', liability: '1000' })
-        await expectAssetValues(this.assetWBTC, 8, { cash: '950.02285194', liability: '1000' })
+        await expectAssetValues(this.assetWBTC, 8, { cash: '950.01785222', liability: '1000' })
 
         expect(receipt)
           .to.emit(this.pool, 'Swap')
@@ -663,7 +663,7 @@ describe('PoolSecondary', function () {
             this.WBTCe.address,
             this.WBTC.address,
             parseUnits('50', 8),
-            parseUnits('49.97714806', 8),
+            parseUnits('49.98214778', 8),
             users[0].address
           )
 
@@ -766,7 +766,7 @@ describe('PoolSecondary', function () {
       const tokenGot = afterToBalance.sub(beforeToBalance)
       expect(tokenGot).to.be.equal(quotedAmount)
       expect(tokenSent).to.be.equal(-usdc('684.405842'))
-      expect(tokenGot).to.be.equal(parseEther('196.362765707548924211'))
+      expect(tokenGot).to.be.equal(parseEther('196.382409841773368881'))
     })
   })
 })

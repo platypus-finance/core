@@ -196,7 +196,13 @@ describe('PoolSecondary', function () {
 
         expect(receipt)
           .to.emit(this.pool, 'Withdraw')
-          .withArgs(users[0].address, this.DAI.address, parseEther('3.769076105999983060'), parseEther('10'), users[0].address)
+          .withArgs(
+            users[0].address,
+            this.DAI.address,
+            parseEther('3.769076105999983060'),
+            parseEther('10'),
+            users[0].address
+          )
       })
 
       it('works without fee (cov >= 1)', async function () {

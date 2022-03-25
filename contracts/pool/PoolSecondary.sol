@@ -27,7 +27,14 @@ import '../interfaces/IPool.sol';
  * Changes:
  * removed impairment loss/gain on withdrawals/deposits
  */
-contract PoolSecondary is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
+contract PoolSecondary is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    Core,
+    IPool
+{
     using DSMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -139,7 +146,7 @@ contract PoolSecondary is Initializable, OwnableUpgradeable, ReentrancyGuardUpgr
         _slippageParamN = 7; // 7
         _c1 = 376927610599998308; // ((k**(1/(n+1))) / (n**((n)/(n+1)))) + (k*n)**(1/(n+1))
         _xThreshold = 329811659274998519; // (k*n)**(1/(n+1))
-        _haircutRate = 0.0004e18; // 4 * 10**14 == 0.0004 == 0.04% for intra-aggregate account swap
+        _haircutRate = 0.0003e18; // 3 * 10**14 == 0.0003 == 0.03% for intra-aggregate account swap
         _retentionRatio = ETH_UNIT; // 1
         _maxPriceDeviation = 0.02e18; // 2 * 10**16 == 2% = 0.02 in ETH_UNIT.
 

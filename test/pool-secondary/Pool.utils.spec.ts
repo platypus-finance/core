@@ -84,9 +84,9 @@ describe('PoolSecondary', function () {
     })
 
     it('Should set haircut', async function () {
-      const receipt = await this.pool.connect(owner).setHaircutRate(parseEther('0.3'))
-      expect(await this.pool.connect(owner).getHaircutRate()).to.be.equal(parseEther('0.3'))
-      expect(receipt).to.emit(this.pool, 'HaircutRateUpdated').withArgs(parseEther('0.0004'), parseEther('0.3'))
+      const receipt = await this.pool.connect(owner).setHaircutRate(parseEther('0.5'))
+      expect(await this.pool.connect(owner).getHaircutRate()).to.be.equal(parseEther('0.5'))
+      expect(receipt).to.emit(this.pool, 'HaircutRateUpdated').withArgs(parseEther('0.0003'), parseEther('0.5'))
     })
 
     it('Should set max price deviation', async function () {
