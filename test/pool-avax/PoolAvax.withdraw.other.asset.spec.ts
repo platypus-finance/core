@@ -211,7 +211,7 @@ describe('AvaxPool', function () {
 
       expect(receipt)
         .to.emit(this.pool, 'Withdraw')
-        .withArgs(users[0].address, this.sAVAX.address, parseEther('70'), parseEther('70'), users[1].address)
+        .withArgs(users[0].address, this.WETH.address, parseEther('25'), parseEther('25'), users[1].address)
     })
   })
 
