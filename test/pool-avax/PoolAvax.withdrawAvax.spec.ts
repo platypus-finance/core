@@ -247,9 +247,9 @@ describe('AvaxPool', function () {
         console.log(`Cash : ${await this.asset.cash()}, Liabilities ${await this.asset.liability()}`)
 
         const beforeBalance = await ethers.provider.getBalance(users[1].address)
-        const [quotedWithdrawal] = await this.pool.quotePotentialWithdraw(this.WETH.address, parseEther('0.3'))
+        await this.pool.quotePotentialWithdraw(this.WETH.address, parseEther('0.3'))
 
-        const receipt = await this.pool
+        await this.pool
           .connect(users[0])
           .withdrawETH(parseEther('0.1'), parseEther('0'), users[1].address, this.fiveSecondsSince)
         const afterBalance = await ethers.provider.getBalance(users[1].address)
