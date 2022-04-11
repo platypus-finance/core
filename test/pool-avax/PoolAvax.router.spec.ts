@@ -9,7 +9,6 @@ import {
   fundUserAndApprovePool,
   setPriceOracle,
   setupPool,
-  usdc,
 } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { setupAggregateAccount } from '../helpers/helper'
@@ -20,13 +19,11 @@ chai.use(solidity)
 describe('AVAX Pool', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
-  let TestERC20: ContractFactory
   let TestWAVAX: ContractFactory
 
   let Asset: ContractFactory
   let Router: ContractFactory
   let AVAXPool: ContractFactory
-  let MainPool: ContractFactory
   let WETHForwarder: ContractFactory
 
   beforeEach(async function () {
@@ -37,7 +34,6 @@ describe('AVAX Pool', function () {
     // Get contracts for Pool, Asset
     Asset = await ethers.getContractFactory('Asset')
     Router = await ethers.getContractFactory('PlatypusRouter01')
-    TestERC20 = await ethers.getContractFactory('TestERC20')
     TestWAVAX = await ethers.getContractFactory('TestWAVAX')
     AVAXPool = await ethers.getContractFactory('PoolAvax')
     Asset = await ethers.getContractFactory('Asset')

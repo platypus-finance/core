@@ -3,10 +3,9 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { ContractFactory } from 'ethers'
-import { createAndInitializeToken, fundUserAndApprovePool, setPriceOracle, usdc } from '../helpers/helper'
+import { createAndInitializeToken, fundUserAndApprovePool } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { setupAggregateAccount } from '../helpers/helper'
-import { parseUnits } from 'ethers/lib/utils'
 
 const { expect } = chai
 chai.use(solidity)
@@ -73,6 +72,86 @@ describe('AvaxPool', function () {
 
       await this.asset.connect(owner).setPool(this.pool.address)
       await this.pool.connect(owner).addAsset(this.WETH.address, this.asset.address)
+    })
+
+    describe('deposit WETH - WAVAX deposit test', function () {
+      it('works (wavax direct deposit)', async function () {
+        /// check that both deposit() and depositAvax() functions can be used to deposit AVAX / WAVAX to the pool
+
+        /// USE DEPOSIT()
+        await this.WETH.transfer(users[0].address, parseEther('2'))
+        await this.WETH.connect(users[0]).approve(this.pool.address, ethers.constants.MaxUint256)
+        const receipt = await this.pool
+          .connect(users[0])
+          .deposit(this.WETH.address, parseEther('1.83'), users[0].address, this.fiveSecondsSince)
+
+        expect(await this.asset.cash()).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('1.83'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('1.83'))
+
+        await expect(receipt)
+          .to.emit(this.pool, 'Deposit')
+          .withArgs(users[0].address, this.WETH.address, parseEther('1.83'), parseEther('1.83'), users[0].address)
+
+        /// USE DEPOSIT AVAX()
+        // try to deposit using avax function and see if it cumulates correctly
+        const receipt2 = await this.pool.connect(users[0]).depositETH(users[0].address, this.fiveSecondsSince, {
+          value: parseEther('0.17'),
+        })
+
+        expect(await this.asset.cash()).to.be.equal(parseEther('2'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('2'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('2'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('2'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('2'))
+
+        await expect(receipt2)
+          .to.emit(this.pool, 'Deposit')
+          .withArgs(users[0].address, this.WETH.address, parseEther('0.17'), parseEther('0.17'), users[0].address)
+
+        /// USE WITHDRAW()
+        /// now withdraw using normal withdraw function
+        const [quotedWithdrawal] = await this.pool.quotePotentialWithdraw(this.WETH.address, parseEther('1.5'))
+
+        const beforeBalance = await this.WETH.balanceOf(users[0].address)
+        const receipt3 = await this.pool
+          .connect(users[0])
+          .withdraw(this.WETH.address, parseEther('1.5'), parseEther('0'), users[0].address, this.fiveSecondsSince)
+        const afterBalance = await this.WETH.balanceOf(users[0].address)
+
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
+        expect(afterBalance.sub(beforeBalance)).to.be.equal(parseEther('1.5'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('0.5'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('0.5'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('0.5'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('0.5'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('0.5'))
+
+        expect(receipt3)
+          .to.emit(this.pool, 'Withdraw')
+          .withArgs(users[0].address, this.WETH.address, parseEther('1.5'), parseEther('1.5'), users[0].address)
+
+        /// USE WITHDRAW AVAX()
+        const beforeBalance2 = await ethers.provider.getBalance(users[1].address)
+        // withdraw to users[1] so can test the exact ETH received (users[0] needs to pay gas)
+        const receipt4 = await this.pool
+          .connect(users[0])
+          .withdrawETH(parseEther('0.5'), parseEther('0.5'), users[1].address, this.fiveSecondsSince)
+        const afterBalance2 = await ethers.provider.getBalance(users[1].address)
+
+        expect(afterBalance2.sub(beforeBalance2)).to.be.equal(parseEther('0.5'))
+        expect(await this.asset.balanceOf(users[0].address)).to.be.equal(parseEther('0'))
+        expect(await this.asset.cash()).to.be.equal(parseEther('0'))
+        expect(await this.asset.liability()).to.be.equal(parseEther('0'))
+        expect(await this.asset.underlyingTokenBalance()).to.be.equal(parseEther('0'))
+        expect(await this.asset.totalSupply()).to.be.equal(parseEther('0'))
+
+        expect(receipt4)
+          .to.emit(this.pool, 'Withdraw')
+          .withArgs(users[0].address, this.WETH.address, parseEther('0.5'), parseEther('0.5'), users[1].address)
+      })
     })
 
     describe('depositETH', function () {
