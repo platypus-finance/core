@@ -22,13 +22,17 @@ export function toWei(amount: BigNumberish, tokenDecimals: BigNumberish): BigNum
 let TestERC20: ContractFactory
 let Asset: ContractFactory
 let Pool: ContractFactory
+let PoolAvax: ContractFactory
 let AggregateAccount: ContractFactory
+let WETHForwarder: ContractFactory
+let TestWAVAX: ContractFactory
 
 async function intializeContractFactories() {
   TestERC20 = await ethers.getContractFactory('TestERC20')
   Asset = await ethers.getContractFactory('Asset')
   AggregateAccount = await ethers.getContractFactory('AggregateAccount')
   Pool = await ethers.getContractFactory('Pool')
+  TestWAVAX = await ethers.getContractFactory('TestWAVAX')
 }
 
 intializeContractFactories()
@@ -43,6 +47,39 @@ export const setupPool = async (owner: Signer): Promise<{ pool: Contract }> => {
 
   await pool.connect(owner).initialize()
   return { pool }
+}
+
+export const setupSecondaryPool = async (owner: Signer): Promise<{ pool: Contract }> => {
+  Pool = await ethers.getContractFactory('PoolSecondary')
+
+  const pool = await Pool.connect(owner).deploy()
+
+  // Wait for contract to be deployed
+  await pool.deployTransaction.wait()
+
+  await pool.connect(owner).initialize()
+  return { pool }
+}
+
+export const setupAvaxPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
+  PoolAvax = await ethers.getContractFactory('PoolAvax')
+  WETHForwarder = await ethers.getContractFactory('WETHForwarder')
+
+  const pool = await PoolAvax.connect(owner).deploy()
+  const WETH = await TestWAVAX.connect(owner).deploy()
+
+  // Wait for contract to be deployed
+  await pool.deployTransaction.wait()
+  await WETH.deployTransaction.wait()
+
+  await pool.connect(owner).initialize(WETH.address)
+
+  // Set WETH Forwarder
+  const forwarder = await WETHForwarder.connect(owner).deploy(WETH.address)
+  await forwarder.connect(owner).setPool(pool.address)
+  await pool.connect(owner).setWETHForwarder(forwarder.address)
+
+  return { pool, WETH }
 }
 
 export const createAndInitializeToken = async (

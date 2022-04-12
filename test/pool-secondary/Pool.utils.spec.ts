@@ -3,15 +3,15 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { BigNumber, ContractFactory } from 'ethers'
-import { setPriceOracle, setupPool, usdc } from './helpers/helper'
+import { setPriceOracle, setupSecondaryPool, usdc } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { assert } from 'chai'
-import { setupAggregateAccount } from './helpers/helper'
+import { setupAggregateAccount } from '../helpers/helper'
 
 const { expect } = chai
 chai.use(solidity)
 
-describe('Pool', function () {
+describe('PoolSecondary', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -31,7 +31,7 @@ describe('Pool', function () {
     const TestWAVAX = await ethers.getContractFactory('TestWAVAX')
 
     // Deploy and initialize pool
-    const poolSetup = await setupPool(owner)
+    const poolSetup = await setupSecondaryPool(owner)
     this.pool = poolSetup.pool
     this.WETH = await TestWAVAX.deploy()
     this.lastBlock = await ethers.provider.getBlock('latest')
@@ -84,9 +84,9 @@ describe('Pool', function () {
     })
 
     it('Should set haircut', async function () {
-      const receipt = await this.pool.connect(owner).setHaircutRate(parseEther('0.3'))
-      expect(await this.pool.connect(owner).getHaircutRate()).to.be.equal(parseEther('0.3'))
-      expect(receipt).to.emit(this.pool, 'HaircutRateUpdated').withArgs(parseEther('0.0004'), parseEther('0.3'))
+      const receipt = await this.pool.connect(owner).setHaircutRate(parseEther('0.5'))
+      expect(await this.pool.connect(owner).getHaircutRate()).to.be.equal(parseEther('0.5'))
+      expect(receipt).to.emit(this.pool, 'HaircutRateUpdated').withArgs(parseEther('0.0003'), parseEther('0.5'))
     })
 
     it('Should set max price deviation', async function () {
