@@ -2,9 +2,13 @@
 
 contracts/interfaces/IPriceOracleGetter.sol
 
+> Title: IPriceOracleGetter interface
+
 ## *function* getAssetPrice
 
 ***IPriceOracleGetter.getAssetPrice(_asset) view***
+
+> Details: returns the asset price in ETH
 
 Arguments
 
@@ -23,6 +27,8 @@ Outputs
 ## *function* getAssetPriceReciprocal
 
 ***IPriceOracleGetter.getAssetPriceReciprocal(_asset) view***
+
+> Details: returns the reciprocal of asset price
 
 Arguments
 
