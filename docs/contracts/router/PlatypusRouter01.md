@@ -52,6 +52,31 @@ Outputs
 
 
 
+## *function* quotePotentialSwaps
+
+***PlatypusRouter01.quotePotentialSwaps(tokenPath, poolPath, fromAmount) view***
+
+> Notice: Quotes potential outcome of a swap given current tokenPath and poolPath, taking in account slippage and haircut
+
+> Details: To be used by frontend
+
+Arguments
+
+| **name** | **type** | **description** |
+|-|-|-|
+| tokenPath | address[] | The token swap path |
+| poolPath | address[] | The token pool path |
+| fromAmount | uint256 | The amount to quote |
+
+Outputs
+
+| **name** | **type** | **description** |
+|-|-|-|
+| potentialOutcome | uint256 | The potential final amount user would receive |
+| haircut | uint256 | The total haircut that would be applied |
+
+
+
 ## *function* renounceOwnership
 
 ***PlatypusRouter01.renounceOwnership() ***
