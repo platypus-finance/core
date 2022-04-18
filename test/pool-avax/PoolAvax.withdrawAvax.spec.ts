@@ -244,7 +244,7 @@ describe('AvaxPool', function () {
         await this.asset.connect(owner).transferUnderlyingToken(owner.address, parseEther('0.7'))
         await this.asset.connect(owner).setPool(this.pool.address)
         expect((await this.asset.cash()) / (await this.asset.liability())).to.equal(0.3)
-        console.log(`Cash : ${await this.asset.cash()}, Liabilities ${await this.asset.liability()}`)
+        // console.log(`Cash : ${await this.asset.cash()}, Liabilities ${await this.asset.liability()}`)
 
         const beforeBalance = await ethers.provider.getBalance(users[1].address)
         await this.pool.quotePotentialWithdraw(this.WETH.address, parseEther('0.3'))
@@ -304,7 +304,9 @@ describe('AvaxPool', function () {
           const afterBalance1 = await ethers.provider.getBalance(users[1].address)
 
           // gas fee paid by users[0]
-          expect(afterBalance0.sub(beforeBalance0)).to.be.equal(parseEther('-0.000143245001145960'))
+          expect(afterBalance0.sub(beforeBalance0)).to.be.below(parseEther('-0.000143'))
+          expect(afterBalance0.sub(beforeBalance0)).to.be.above(parseEther('-0.000144'))
+
           // amount withdrew
           expect(afterBalance1.sub(beforeBalance1)).to.be.equal(parseEther('0.102219608469615482'))
           expect(actualAmount).to.be.equal(parseEther('0.010720619351733528'))
