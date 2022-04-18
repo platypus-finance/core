@@ -166,9 +166,17 @@ contract Core {
         uint256 slippageAfter = _slippageFunc(k, n, c1, xThreshold, covAfter);
         uint256 slippageNeutral = _slippageFunc(k, n, c1, xThreshold, WAD); // slippage on cov = 1
 
+        // calculate fee
+        // fee = a - b
         // fee = [(Li - Di) * SlippageAfter] + [g(1) * Di] - [Li * SlippageBefore]
-        return
-            ((liability - amount).wmul(slippageAfter) + slippageNeutral.wmul(amount)) - liability.wmul(slippageBefore);
+        uint256 a = ((liability - amount).wmul(slippageAfter) + slippageNeutral.wmul(amount));
+        uint256 b = liability.wmul(slippageBefore);
+
+        // handle underflow case
+        if (a > b) {
+            return a - b;
+        }
+        return 0;
     }
 
     /**
