@@ -1,7 +1,6 @@
 [![Lint](https://github.com/platypus-finance/core/workflows/lint/badge.svg)](https://github.com/platypus-finance/core/workflows/lint.yml)
 [![Tests](https://github.com/platypus-finance/core/workflows/test/badge.svg)](https://github.com/platypus-finance/core/workflows/test.yml)
 [![Slither](https://github.com/platypus-finance/core/workflows/slither/badge.svg)](https://github.com/platypus-finance/core/workflows/slither.yml)
-[![codecov](https://codecov.io/gh/platypus-finance/core/branch/master/graph/badge.svg?token=87VTYEYVVI)](https://codecov.io/gh/platypus-finance/core)
 
 # Platypus Finance v1 Core
 Core smart contracts of Platypus Finance. 
