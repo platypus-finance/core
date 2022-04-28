@@ -3,7 +3,7 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { ContractFactory } from 'ethers'
-import { setPriceOracle, usdc } from '../helpers/helper'
+import { setPriceOracle, setupSAvaxPriceFeed, usdc } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { setupAggregateAccount } from '../helpers/helper'
 import { parseUnits } from 'ethers/lib/utils'
@@ -11,7 +11,7 @@ import { parseUnits } from 'ethers/lib/utils'
 const { expect } = chai
 chai.use(solidity)
 
-describe('AvaxPool', function () {
+describe('AvaxPool Deposit', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -56,6 +56,8 @@ describe('AvaxPool', function () {
 
     await this.forwarder.connect(owner).setPool(this.pool.address)
     await this.pool.connect(owner).setWETHForwarder(this.forwarder.address)
+    // Set price oracle
+    await setupSAvaxPriceFeed(this.pool)
   })
 
   describe('Asset DAI (18 decimals)', function () {
@@ -78,11 +80,6 @@ describe('AvaxPool', function () {
       await this.asset.connect(owner).setPool(this.pool.address)
       // Add asset to pool
       await this.pool.connect(owner).addAsset(this.DAI.address, this.asset.address)
-
-      // Set price oracle
-      await setPriceOracle(this.pool, owner, this.lastBlockTime, [
-        { address: this.DAI.address, initialRate: parseUnits('1', 8).toString() },
-      ])
     })
 
     describe('deposit', function () {

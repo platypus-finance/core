@@ -10,12 +10,13 @@ import {
   expectAssetValues,
   setupAggregateAccount,
   setupAvaxPool,
+  setupSAvaxPriceFeed,
 } from '../helpers/helper'
 
 const { expect } = chai
 chai.use(solidity)
 
-describe('AvaxPool', function () {
+describe('AvaxPool Swap Avax', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -40,6 +41,8 @@ describe('AvaxPool', function () {
     const poolSetup = await setupAvaxPool(owner)
     this.pool = poolSetup.pool
     this.WETH = poolSetup.WETH
+
+    await setupSAvaxPriceFeed(this.pool)
   })
 
   describe('Asset WAVAX (weth)', function () {
@@ -59,6 +62,8 @@ describe('AvaxPool', function () {
 
       this.sAVAX = tokenSetSAvax.token
       this.assetSAVAX = tokenSetSAvax.asset
+
+      await this.pool.setSAvax(this.sAVAX.address)
 
       await fundUserAndApprovePool(this.sAVAX, users[0], parseEther('100000').toString(), this.pool, owner)
 

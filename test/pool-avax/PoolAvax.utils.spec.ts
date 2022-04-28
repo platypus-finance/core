@@ -3,7 +3,7 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { BigNumber, ContractFactory } from 'ethers'
-import { setPriceOracle, setupAvaxPool, usdc } from '../helpers/helper'
+import { setupAvaxPool, setupSAvaxPriceFeed, usdc } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { assert } from 'chai'
 import { setupAggregateAccount } from '../helpers/helper'
@@ -11,7 +11,7 @@ import { setupAggregateAccount } from '../helpers/helper'
 const { expect } = chai
 chai.use(solidity)
 
-describe('AvaxPool', function () {
+describe('AvaxPool Utils', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -37,7 +37,7 @@ describe('AvaxPool', function () {
     this.lastBlock = await ethers.provider.getBlock('latest')
     this.lastBlockTime = this.lastBlock.timestamp
 
-    await setPriceOracle(this.pool, owner, this.lastBlockTime, [])
+    await setupSAvaxPriceFeed(this.pool)
   })
 
   describe('Get and set slippage params, haircut and retention ratio', function () {
@@ -111,6 +111,15 @@ describe('AvaxPool', function () {
       // Can set WETHForwarder
       await this.pool.connect(owner).setWETHForwarder('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
       expect(await this.pool.connect(owner).wethForwarder()).to.be.equal('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
+    })
+
+    it('sets and gets sAvax', async function () {
+      // gets sAvax
+      assert.exists(await this.pool.connect(owner).sAvax(), 'Param OK')
+
+      // Can set WETHForwarder
+      await this.pool.connect(owner).setSAvax('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
+      expect(await this.pool.connect(owner).sAvax()).to.be.equal('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
     })
 
     it('Should revert if slippage params are set outside out of their boundaries', async function () {
