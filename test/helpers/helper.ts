@@ -198,3 +198,11 @@ export const setPriceOracle = async (
     await Promise.all(updatePromise)
   }
 }
+
+export const setupSAvaxPriceFeed = async (pool: Contract): Promise<Contract> => {
+  const TestStakedAvax = await ethers.getContractFactory('TestStakedAvax')
+  const testStakedAvax = await TestStakedAvax.deploy()
+
+  await pool.setPriceOracle(testStakedAvax.address)
+  return testStakedAvax
+}
