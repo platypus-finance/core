@@ -76,6 +76,12 @@ const config: HardhatUserConfig = {
     // API key for snowtrace.io
     apiKey: process.env.ETHERSCAN_API_KEY,
   },
+  contractSizer: {
+    alphaSort: true,
+    disambiguatePaths: false,
+    runOnCompile: true,
+    strict: false,
+  },
 }
 
 if (process.env.ACCOUNT_PRIVATE_KEYS) {

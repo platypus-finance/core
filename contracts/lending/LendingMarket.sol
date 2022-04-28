@@ -8,6 +8,7 @@ import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 
 import '../interfaces/IUSP.sol';
 import '../interfaces/IPriceOracle.sol';
+import '../interfaces/ILendingMarketShare.sol';
 
 /**
  * @title LendingMarket
@@ -63,6 +64,8 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     IUSP public usp;
     /// @notice lending market settings
     MarketSettings public settings;
+    /// @notice LendingMarketShare Address
+    ILendingMarketShare public marketShare;
     /// @notice collateral tokens in array
     address[] public collateralTokens;
     /// @notice collateral settings
@@ -84,7 +87,11 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @param _usp USP token address
      * @param _settings lending market settings
      */
-    function initialize(IUSP _usp, MarketSettings memory _settings) external initializer {
+    function initialize(
+        IUSP _usp,
+        ILendingMarketShare _marketShare,
+        MarketSettings memory _settings
+    ) external initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
 
@@ -95,6 +102,7 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         _validateRate(_settings.orgRevenueFeeRate); // 3%
 
         usp = _usp;
+        marketShare = _marketShare;
         settings = _settings;
     }
 
@@ -135,6 +143,7 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         // check if collateral token already exists
         require(!collateralSettings[_token].isValid, 'collateral token exists');
+        marketShare.registerLpToken(_token);
 
         // add a new collateral
         collateralSettings[_token] = CollateralSetting({
