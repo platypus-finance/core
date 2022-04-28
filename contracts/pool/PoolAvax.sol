@@ -10,7 +10,7 @@ import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
 
 import '../libraries/DSMath.sol';
-import '../interfaces/IPriceOracleGetter.sol';
+import '../interfaces/IStakedAvax.sol';
 import '../asset/Asset.sol';
 import './Core.sol';
 import '../interfaces/IPool.sol';
@@ -31,6 +31,10 @@ import '../interfaces/IWETHForwarder.sol';
  * removed _checkPriceDeviation (chainlink peg check)
  * added weth and wethforwarder
  * added swapFromETH, swapToETH, depositETH, withdrawETH
+ * added sAVAX state variable and setSAvax() function
+ * adjusted pricicing feed to get rate from
+ * BenQI StakedAvax contract Mainnet : 0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE
+ * Can only handle WAVAX and sAVAX
  */
 contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
     using DSMath for uint256;
@@ -76,10 +80,13 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
     IWETHForwarder public wethForwarder;
 
     /// @notice The price oracle interface used in swaps
-    IPriceOracleGetter private _priceOracle;
+    IStakedAvax private _priceOracle;
 
     /// @notice A record of assets inside Pool
     AssetMap private _assets;
+
+    /// @notice sAVAX address
+    address public sAvax;
 
     /// @notice An event emitted when an asset is added to Pool
     event AssetAdded(address indexed token, address indexed asset);
@@ -126,6 +133,9 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         uint256 toAmount,
         address indexed to
     );
+
+    /// @notice An event emitted when sAVAX address changes
+    event SAvaxUpdated(address previousSAvax, address newSAvax);
 
     /// @dev Modifier ensuring that certain function can only be called by developer
     modifier onlyDev() {
@@ -263,6 +273,16 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /**
+     * @notice Changes sAvax address
+     * @param sAvax_ the new sAVAX address
+     */
+    function setSAvax(address sAvax_) external onlyOwner {
+        require(sAvax_ != address(0), 'ZERO');
+        emit SAvaxUpdated(sAvax, sAvax_);
+        sAvax = sAvax_;
+    }
+
+    /**
      * @notice Changes the pools WETHForwarder. Can only be set by the contract owner.
      * @param wethForwarder_ new pool's WETHForwarder address
      */
@@ -331,7 +351,7 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
     function setPriceOracle(address priceOracle) external onlyOwner {
         require(priceOracle != address(0), 'ZERO');
         emit OracleUpdated(address(_priceOracle), priceOracle);
-        _priceOracle = IPriceOracleGetter(priceOracle);
+        _priceOracle = IStakedAvax(priceOracle);
     }
 
     // Asset struct functions //
@@ -687,6 +707,21 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         // Convert liquidity to d.p of initial asset
         uint256 liquidityInInitialAssetDP = (liquidity * 10**initialAsset.decimals()) / (10**wantedAsset.decimals());
 
+        require(sAvax != address(0), 'sAVAX_NOT_SET');
+        uint256 sAvaxRate = _priceOracle.getPooledAvaxByShares(1e18);
+        require(sAvaxRate > 0, 'INVALID_PRICE');
+
+        // sAVAX -> AVAX
+        if (initialToken == sAvax && wantedToken == weth) {
+            liquidityInInitialAssetDP = liquidityInInitialAssetDP.wdiv(sAvaxRate);
+            // AVAX -> sAVAX
+        } else if (initialToken == weth && wantedToken == sAvax) {
+            liquidityInInitialAssetDP = liquidityInInitialAssetDP.wmul(sAvaxRate);
+        } else {
+            // we assume only these two tokens can be added to the pool
+            revert('UNSUPPORTED_WITHDRAW_IN_OTHER_ASSET');
+        }
+
         // require liquidity in initial asset dp to be > 0
         require(liquidityInInitialAssetDP > 0, 'DUST?');
 
@@ -898,6 +933,7 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
      * @param fromAsset The initial asset
      * @param toAsset The asset wanted by user
      * @param fromAmount The amount to quote
+     * @dev assumes only sAVAX and AVAX assets can be swaped for this pool.
      * @return idealToAmount The ideal amount user would receive
      */
     function _quoteIdealToAmount(
@@ -905,8 +941,26 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
         Asset toAsset,
         uint256 fromAmount
     ) private view returns (uint256 idealToAmount) {
-        // assume perfect peg between assets
-        idealToAmount = ((fromAmount * 10**toAsset.decimals()) / 10**fromAsset.decimals());
+        require(sAvax != address(0), 'sAVAX_NOT_SET');
+        // get sAvax rate in wad
+        uint256 sAvaxRate = _priceOracle.getPooledAvaxByShares(1e18);
+        require(sAvaxRate > 0, 'INVALID_PRICE');
+
+        // get tokens to be swapped
+        address fromToken = fromAsset.underlyingToken();
+        address toToken = toAsset.underlyingToken();
+
+        // sAVAX -> AVAX => apply rate
+        if (fromToken == sAvax && toToken == weth) {
+            idealToAmount = fromAmount.wmul(sAvaxRate);
+
+            // AVAX -> sAVAX => divide rate
+        } else if (fromToken == weth && toToken == sAvax) {
+            idealToAmount = fromAmount.wdiv(sAvaxRate);
+        } else {
+            // we assume only these two tokens can be added to the pool
+            revert('UNSUPPORTED_SWAP');
+        }
     }
 
     /**
@@ -1012,10 +1066,26 @@ contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeab
 
         uint256 wantedAssetCov = (wantedAsset.cash()).wdiv(wantedAsset.liability());
 
+        require(sAvax != address(0), 'sAVAX_NOT_SET');
+        uint256 sAvaxRate = _priceOracle.getPooledAvaxByShares(1e18);
+        require(sAvaxRate > 0, 'INVALID_PRICE');
+
         if (wantedAssetCov > ETH_UNIT) {
             maxInitialAssetAmount =
                 ((wantedAssetCov - ETH_UNIT).wmul(wantedAsset.totalSupply()) * 10**initialAsset.decimals()) /
                 10**wantedAsset.decimals();
+
+            // Apply rate
+            // sAVAX -> AVAX
+            if (initialToken == sAvax && wantedToken == weth) {
+                maxInitialAssetAmount = maxInitialAssetAmount.wdiv(sAvaxRate);
+                // AVAX -> sAVAX
+            } else if (initialToken == weth && wantedToken == sAvax) {
+                maxInitialAssetAmount = maxInitialAssetAmount.wmul(sAvaxRate);
+            } else {
+                // we assume only these two tokens can be added to the pool
+                revert('UNSUPPORTED_WITHDRAW_IN_OTHER_ASSET');
+            }
         } else {
             maxInitialAssetAmount = 0;
         }

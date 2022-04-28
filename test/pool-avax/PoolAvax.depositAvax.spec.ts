@@ -3,14 +3,14 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { ContractFactory } from 'ethers'
-import { createAndInitializeToken, fundUserAndApprovePool } from '../helpers/helper'
+import { createAndInitializeToken, fundUserAndApprovePool, setupSAvaxPriceFeed } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { setupAggregateAccount } from '../helpers/helper'
 
 const { expect } = chai
 chai.use(solidity)
 
-describe('AvaxPool', function () {
+describe('AvaxPool Deposit Avax', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -55,6 +55,8 @@ describe('AvaxPool', function () {
 
     await this.forwarder.connect(owner).setPool(this.pool.address)
     await this.pool.connect(owner).setWETHForwarder(this.forwarder.address)
+    // Set price oracle
+    await setupSAvaxPriceFeed(this.pool)
   })
 
   describe('Asset AVAX', function () {
