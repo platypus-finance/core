@@ -214,7 +214,12 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(collateralSettings[_token].isValid, 'invalid token');
 
         // get collateral from depositor
-        IERC20MetadataUpgradeable(_token).safeTransferFrom(msg.sender, address(this), _amount);
+        IERC20MetadataUpgradeable lpToken = IERC20MetadataUpgradeable(_token);
+        lpToken.safeTransferFrom(msg.sender, address(this), _amount);
+
+        // deposit lp to master platypus and generate yield
+        lpToken.safeApprove(address(marketShare), _amount);
+        marketShare.deposit(msg.sender, _token, _amount);
 
         // update a user's collateral position
         userPositions[_onBehalfOf][_token].amount += _amount;
@@ -294,6 +299,9 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         // update user's collateral position
         position.amount -= _amount;
+
+        // Withdraw lp tokens from Master Platypus
+        marketShare.withdraw(msg.sender, _token, _amount);
 
         // transfer collateral to user
         IERC20MetadataUpgradeable(_token).safeTransfer(msg.sender, _amount);
