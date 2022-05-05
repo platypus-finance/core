@@ -8,7 +8,7 @@ import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 
 import '../interfaces/IUSP.sol';
 import '../interfaces/IPriceOracle.sol';
-import '../interfaces/ILendingMarketShare.sol';
+import '../interfaces/IMasterPlatypus.sol';
 
 /**
  * @title LendingMarket
@@ -36,6 +36,7 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     /// @notice A struct for collateral settings
     struct CollateralSetting {
         bool isValid; // if collateral is valid or not
+        uint256 pid; // pid of master platypus
         IPriceOracle oracle; // collateral price oracle (returns price in usd: 8 decimals)
         Rate creditLimitRate; // collateral borrow limit (e.g. USDs = 80%, BTCs = 70%, AVAXs=70%)
         Rate liqLimitRate; // collateral liquidation threshold rate (greater than credit limit rate)
@@ -44,7 +45,6 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     /// @notice A struct for users collateral position
     struct Position {
-        uint256 amount; // collateral amount
         uint256 debtPrincipal; // debt amount
         uint256 debtPortion; // accumulated debt interest
     }
@@ -64,8 +64,8 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     IUSP public usp;
     /// @notice lending market settings
     MarketSettings public settings;
-    /// @notice LendingMarketShare Address
-    ILendingMarketShare public marketShare;
+    /// @notice MasterPlatypus Address
+    IMasterPlatypus public masterPlatypus;
     /// @notice collateral tokens in array
     address[] public collateralTokens;
     /// @notice collateral settings
@@ -85,11 +85,12 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     /**
      * @notice Initializer.
      * @param _usp USP token address
+     * @param _masterPlatypus MasterPlatypus address
      * @param _settings lending market settings
      */
     function initialize(
         IUSP _usp,
-        ILendingMarketShare _marketShare,
+        IMasterPlatypus _masterPlatypus,
         MarketSettings memory _settings
     ) external initializer {
         __Ownable_init();
@@ -102,7 +103,7 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         _validateRate(_settings.orgRevenueFeeRate); // 3%
 
         usp = _usp;
-        marketShare = _marketShare;
+        masterPlatypus = _masterPlatypus;
         settings = _settings;
     }
 
@@ -143,11 +144,12 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         // check if collateral token already exists
         require(!collateralSettings[_token].isValid, 'collateral token exists');
-        marketShare.registerLpToken(_token);
+        uint256 pid = _getPidOfMasterPlatypus(_token);
 
         // add a new collateral
         collateralSettings[_token] = CollateralSetting({
             isValid: true,
+            pid: pid,
             oracle: IPriceOracle(_oracle),
             creditLimitRate: _creditLimitRate,
             liqLimitRate: _liqLimitRate,
@@ -218,11 +220,8 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         lpToken.safeTransferFrom(msg.sender, address(this), _amount);
 
         // deposit lp to master platypus and generate yield
-        lpToken.safeApprove(address(marketShare), _amount);
-        marketShare.deposit(msg.sender, _token, _amount);
-
-        // update a user's collateral position
-        userPositions[_onBehalfOf][_token].amount += _amount;
+        lpToken.safeApprove(address(masterPlatypus), _amount);
+        masterPlatypus.depositFor(collateralSettings[_token].pid, _amount, _onBehalfOf);
 
         emit Deposit(_onBehalfOf, _token, _amount);
     }
@@ -276,6 +275,7 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @param _token collateral token address
      * @param _amount collateral amount to withdraw
      */
+    //  TODO: Remove this function
     function withdraw(address _token, uint256 _amount) external nonReentrant {
         // check if collateral is valid
         require(collateralSettings[_token].isValid, 'invalid token');
@@ -285,10 +285,10 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         Position storage position = userPositions[msg.sender][_token];
 
         // check if withdraw amount is more than the collateral amount
-        require(position.amount >= _amount, 'insufficient collateral');
+        // require(position.amount >= _amount, 'insufficient collateral');
 
         // calculate borrow limit after withdraw in USD
-        uint256 creditLimitAfterWithdraw = (_tokenUSD(_token, position.amount - _amount) *
+        uint256 creditLimitAfterWithdraw = (_tokenUSD(_token, getCollateralAmount(_token, msg.sender) - _amount) *
             collateralSettings[_token].creditLimitRate.numerator) /
             collateralSettings[_token].creditLimitRate.denominator;
         // calculate debt amount in USD
@@ -297,14 +297,9 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         // check if withdraw is available
         require(debtAmount <= creditLimitAfterWithdraw, 'insufficient collateral');
 
-        // update user's collateral position
-        position.amount -= _amount;
-
-        // Withdraw lp tokens from Master Platypus
-        marketShare.withdraw(msg.sender, _token, _amount);
-
-        // transfer collateral to user
-        IERC20MetadataUpgradeable(_token).safeTransfer(msg.sender, _amount);
+        // Withdraw lp tokens and rewards from Master Platypus
+        // masterPlatypus.withdraw(collateralSettings[_token].pid, _amount);
+        // TODO: remove withdraw function
 
         emit Withdraw(msg.sender, _token, _amount);
     }
@@ -393,15 +388,17 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         position.debtPortion -= minusPortion;
 
         // returns liquidation fee to liquidator
+        uint256 collateralAmount = getCollateralAmount(_token, _user);
+        masterPlatypus.withdrawFor(collateralSettings[_token].pid, collateralAmount, _user);
         uint256 liquidatorFeeUSD = _uspAmount +
             (_uspAmount * settings.liquidatorFeeRate.numerator) /
             settings.liquidatorFeeRate.denominator;
-        position.amount -= _returnFeeFromCollateral(msg.sender, _token, liquidatorFeeUSD);
+        collateralAmount -= _returnFeeFromCollateral(msg.sender, _token, liquidatorFeeUSD);
 
         // returns organization revenue to the owner
         uint256 orgRevenueUSD = (_uspAmount * settings.orgRevenueFeeRate.numerator) /
             settings.orgRevenueFeeRate.denominator;
-        position.amount -= _returnFeeFromCollateral(owner(), _token, orgRevenueUSD);
+        collateralAmount -= _returnFeeFromCollateral(owner(), _token, orgRevenueUSD);
 
         emit Liquidate(_user, _token, _uspAmount, msg.sender);
     }
@@ -432,13 +429,14 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
                 totalDebtPortion;
         uint256 debtPrincipal = userPositions[_user][_token].debtPrincipal;
         uint256 debtAmount = debtPrincipal > debtCalculated ? debtPrincipal : debtCalculated;
+        uint256 collateralAmount = getCollateralAmount(_token, _user);
 
         return
             PositionView({
                 owner: _user,
                 token: _token,
-                amount: position.amount,
-                amountUSD: _tokenUSD(_token, position.amount),
+                amount: collateralAmount,
+                amountUSD: _tokenUSD(_token, collateralAmount),
                 creditLimitUSD: _creditLimitUSD(_user, _token),
                 debtPrincipal: position.debtPrincipal,
                 debtInterest: debtAmount - position.debtPrincipal,
@@ -446,7 +444,21 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             });
     }
 
+    function getCollateralAmount(address _token, address _user) public view returns (uint256) {
+        return masterPlatypus.userInfo(collateralSettings[_token].pid, _user).amount;
+    }
+
     /// INTERNAL FUNCTIONS
+
+    function _getPidOfMasterPlatypus(address _token) internal view returns (uint256) {
+        uint256 mpPoolLength = masterPlatypus.poolLength();
+        for (uint256 i = 0; i < mpPoolLength; i++) {
+            if (_token == masterPlatypus.poolInfo(i).lpToken) {
+                return i;
+            }
+        }
+        revert('invalid lp');
+    }
 
     /**
      * @notice validate rate denominator and numerator
@@ -491,7 +503,7 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @return The USD amount in 18 decimals
      */
     function _creditLimitUSD(address _user, address _token) internal view returns (uint256) {
-        uint256 amount = userPositions[_user][_token].amount;
+        uint256 amount = getCollateralAmount(_token, _user);
         uint256 totalUSD = _tokenUSD(_token, amount);
         return
             (totalUSD * collateralSettings[_token].creditLimitRate.numerator) /
@@ -505,7 +517,7 @@ contract LendingMarket is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * @return The USD amount in 18 decimals
      */
     function _liquidateLimitUSD(address _user, address _token) internal view returns (uint256) {
-        uint256 amount = userPositions[_user][_token].amount;
+        uint256 amount = getCollateralAmount(_token, _user);
         uint256 totalUSD = _tokenUSD(_token, amount);
         return
             (totalUSD * collateralSettings[_token].liqLimitRate.numerator) /
