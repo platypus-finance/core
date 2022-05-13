@@ -290,4 +290,24 @@ describe('Pool', function () {
       await expect(this.pool.connect(users[0]).unpause()).to.be.revertedWith('FORBIDDEN')
     })
   })
+
+  describe('recover user funds', function () {
+    it('works', async function () {
+      const dummyToken = await TestERC20.connect(users[0]).deploy('Dummy', 'Dummy', 18, parseEther('1000'))
+      expect(await dummyToken.balanceOf(this.pool.address)).to.be.equal('0')
+
+      // OMG some guy wants to send money to the pool for no reason. why?
+      await dummyToken.connect(users[0]).transfer(this.pool.address, parseEther('500'))
+      expect(await dummyToken.balanceOf(this.pool.address)).to.be.equal(parseEther('500'))
+
+      // A random guy cannot take these funds
+      await expect(this.pool.connect(users[6]).recoverUserFunds(dummyToken.address)).to.be.revertedWith('FORBIDDEN')
+
+      // Hero dev can save those funds now
+      await this.pool.recoverUserFunds(dummyToken.address)
+
+      expect(await dummyToken.balanceOf(this.pool.address)).to.be.equal('0')
+      expect(await dummyToken.balanceOf(owner.address)).to.be.equal(parseEther('500'))
+    })
+  })
 })

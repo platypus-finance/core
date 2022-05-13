@@ -24,6 +24,8 @@ import '../interfaces/IPool.sol';
  * Note The ownership will be transferred to a governance contract once Platypus community can show to govern itself.
  *
  * The unique features of the Platypus make it an important subject in the study of evolutionary biology.
+ * + Added recover user funds (for funds mistakingly sent to this contract)
+ * + Added view function for eqCovRatio
  */
 contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
     using DSMath for uint256;
@@ -409,7 +411,16 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
      * @dev [ sum of Ai * fi / sum Li * fi ]
      * @return equilibriumCoverageRatio system equilibrium coverage ratio
      */
-    function getEquilibriumCoverageRatio() private view returns (uint256) {
+    function getEquilibriumCoverageRatio() external view returns (uint256) {
+        return _getEquilibriumCoverageRatio();
+    }
+
+    /**
+     * @notice gets system equilibrium coverage ratio
+     * @dev [ sum of Ai * fi / sum Li * fi ]
+     * @return equilibriumCoverageRatio system equilibrium coverage ratio
+     */
+    function _getEquilibriumCoverageRatio() private view returns (uint256) {
         uint256 totalCash = 0;
         uint256 totalLiability = 0;
 
@@ -494,7 +505,7 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
         }
 
         // get equilibrium coverage ratio
-        uint256 eqCov = getEquilibriumCoverageRatio();
+        uint256 eqCov = _getEquilibriumCoverageRatio();
 
         // apply impairment gain if eqCov < 1
         if (eqCov < ETH_UNIT) {
@@ -568,7 +579,7 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
         );
 
         // Get equilibrium coverage ratio before withdraw
-        uint256 eqCov = getEquilibriumCoverageRatio();
+        uint256 eqCov = _getEquilibriumCoverageRatio();
 
         // Init enoughCash to true
         enoughCash = true;
@@ -951,5 +962,14 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
      */
     function getTokenAddresses() external view override returns (address[] memory) {
         return _assets.keys;
+    }
+
+    /**
+     * @notice Recover any funds mistakingly sent to this contract
+     * @param token the address of the token to retrieve
+     */
+    function recoverUserFunds(address token) external onlyDev {
+        uint256 currentBalance = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(msg.sender, currentBalance);
     }
 }
