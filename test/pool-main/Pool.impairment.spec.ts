@@ -124,6 +124,9 @@ describe('Pool', function () {
         // quote withdrawal
         const [quotedWithdrawal] = await this.pool.quotePotentialWithdraw(this.DAI.address, parseEther('1000'))
 
+        const eqCov = await this.pool.getEquilibriumCoverageRatio()
+        expect(eqCov).to.be.equal(parseEther('0.625'))
+
         // withdraw 1000 DAI
         const receipt = await this.pool
           .connect(users[0])
