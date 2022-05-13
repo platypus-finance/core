@@ -3,7 +3,7 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { BigNumber, ContractFactory } from 'ethers'
-import { setPriceOracle, setupPool, usdc } from '../helpers/helper'
+import { setPriceOracle, setupSecondaryPurePool, usdc } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { assert } from 'chai'
 import { setupAggregateAccount } from '../helpers/helper'
@@ -11,7 +11,7 @@ import { setupAggregateAccount } from '../helpers/helper'
 const { expect } = chai
 chai.use(solidity)
 
-describe('Pool', function () {
+describe('PoolSecondary', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -31,7 +31,7 @@ describe('Pool', function () {
     const TestWAVAX = await ethers.getContractFactory('TestWAVAX')
 
     // Deploy and initialize pool
-    const poolSetup = await setupPool(owner)
+    const poolSetup = await setupSecondaryPurePool(owner)
     this.pool = poolSetup.pool
     this.WETH = await TestWAVAX.deploy()
     this.lastBlock = await ethers.provider.getBlock('latest')
@@ -84,9 +84,9 @@ describe('Pool', function () {
     })
 
     it('Should set haircut', async function () {
-      const receipt = await this.pool.connect(owner).setHaircutRate(parseEther('0.3'))
-      expect(await this.pool.connect(owner).getHaircutRate()).to.be.equal(parseEther('0.3'))
-      expect(receipt).to.emit(this.pool, 'HaircutRateUpdated').withArgs(parseEther('0.0004'), parseEther('0.3'))
+      const receipt = await this.pool.connect(owner).setHaircutRate(parseEther('0.5'))
+      expect(await this.pool.connect(owner).getHaircutRate()).to.be.equal(parseEther('0.5'))
+      expect(receipt).to.emit(this.pool, 'HaircutRateUpdated').withArgs(parseEther('0.0003'), parseEther('0.5'))
     })
 
     it('Should set max price deviation', async function () {
@@ -288,26 +288,6 @@ describe('Pool', function () {
     it('restricts to only dev (deployer)', async function () {
       await expect(this.pool.connect(users[0]).pause()).to.be.revertedWith('FORBIDDEN')
       await expect(this.pool.connect(users[0]).unpause()).to.be.revertedWith('FORBIDDEN')
-    })
-  })
-
-  describe('recover user funds', function () {
-    it('works', async function () {
-      const dummyToken = await TestERC20.connect(users[0]).deploy('Dummy', 'Dummy', 18, parseEther('1000'))
-      expect(await dummyToken.balanceOf(this.pool.address)).to.be.equal('0')
-
-      // OMG some guy wants to send money to the pool for no reason. why?
-      await dummyToken.connect(users[0]).transfer(this.pool.address, parseEther('500'))
-      expect(await dummyToken.balanceOf(this.pool.address)).to.be.equal(parseEther('500'))
-
-      // A random guy cannot take these funds
-      await expect(this.pool.connect(users[6]).recoverUserFunds(dummyToken.address)).to.be.revertedWith('FORBIDDEN')
-
-      // Hero dev can save those funds now
-      await this.pool.recoverUserFunds(dummyToken.address)
-
-      expect(await dummyToken.balanceOf(this.pool.address)).to.be.equal('0')
-      expect(await dummyToken.balanceOf(owner.address)).to.be.equal(parseEther('500'))
     })
   })
 })

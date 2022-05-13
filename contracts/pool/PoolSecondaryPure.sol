@@ -16,7 +16,7 @@ import './Core.sol';
 import '../interfaces/IPool.sol';
 
 /**
- * @title Pool
+ * @title PoolSecondaryPure
  * @notice Manages deposits, withdrawals and swaps. Holds a mapping of assets and parameters.
  * @dev The main entry-point of Platypus protocol
  *
@@ -24,10 +24,18 @@ import '../interfaces/IPool.sol';
  * Note The ownership will be transferred to a governance contract once Platypus community can show to govern itself.
  *
  * The unique features of the Platypus make it an important subject in the study of evolutionary biology.
- * + Added recover user funds (for funds mistakingly sent to this contract)
- * + Added view function for eqCovRatio
+ * Changes:
+ * removed impairment loss/gain on withdrawals/deposits
+ * pure means no external oracle is consulted and it always assumes 1:1 peg is maintained.
  */
-contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
+contract PoolSecondaryPure is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    Core,
+    IPool
+{
     using DSMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -139,7 +147,7 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
         _slippageParamN = 7; // 7
         _c1 = 376927610599998308; // ((k**(1/(n+1))) / (n**((n)/(n+1)))) + (k*n)**(1/(n+1))
         _xThreshold = 329811659274998519; // (k*n)**(1/(n+1))
-        _haircutRate = 0.0004e18; // 4 * 10**14 == 0.0004 == 0.04% for intra-aggregate account swap
+        _haircutRate = 0.0003e18; // 3 * 10**14 == 0.0003 == 0.03% for intra-aggregate account swap
         _retentionRatio = ETH_UNIT; // 1
         _maxPriceDeviation = 0.02e18; // 2 * 10**16 == 2% = 0.02 in ETH_UNIT.
 
@@ -389,65 +397,6 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
 
     // Pool Functions //
     /**
-     * @notice Checks deviation is not higher than specified amount
-     * @dev Reverts if deviation is higher than _maxPriceDeviation
-     * @param tokenA First token
-     * @param tokenB Second token
-     */
-    function _checkPriceDeviation(address tokenA, address tokenB) private view {
-        uint256 tokenAPrice = _priceOracle.getAssetPrice(tokenA);
-        uint256 tokenBPrice = _priceOracle.getAssetPrice(tokenB);
-
-        // check if prices respect their maximum deviation for a > b : (a - b) / a < maxDeviation
-        if (tokenBPrice > tokenAPrice) {
-            require((((tokenBPrice - tokenAPrice) * ETH_UNIT) / tokenBPrice) <= _maxPriceDeviation, 'PRICE_DEV');
-        } else {
-            require((((tokenAPrice - tokenBPrice) * ETH_UNIT) / tokenAPrice) <= _maxPriceDeviation, 'PRICE_DEV');
-        }
-    }
-
-    /**
-     * @notice gets system equilibrium coverage ratio
-     * @dev [ sum of Ai * fi / sum Li * fi ]
-     * @return equilibriumCoverageRatio system equilibrium coverage ratio
-     */
-    function getEquilibriumCoverageRatio() external view returns (uint256) {
-        return _getEquilibriumCoverageRatio();
-    }
-
-    /**
-     * @notice gets system equilibrium coverage ratio
-     * @dev [ sum of Ai * fi / sum Li * fi ]
-     * @return equilibriumCoverageRatio system equilibrium coverage ratio
-     */
-    function _getEquilibriumCoverageRatio() private view returns (uint256) {
-        uint256 totalCash = 0;
-        uint256 totalLiability = 0;
-
-        // loop on assets
-        for (uint256 i; i < _sizeOfAssetList(); ++i) {
-            // get token address
-            address assetAddress = _getKeyAtIndex(i);
-
-            // get token oracle price
-            uint256 tokenPrice = _priceOracle.getAssetPrice(assetAddress);
-
-            // used to convert cash and liabilities into ETH_UNIT to have equal decimals accross all assets
-            uint256 offset = 10**(18 - _getAsset(assetAddress).decimals());
-
-            totalCash += (_getAsset(assetAddress).cash() * offset * tokenPrice);
-            totalLiability += (_getAsset(assetAddress).liability() * offset * tokenPrice);
-        }
-
-        // if there are no liabilities or no assets in the pool, return equilibrium state = 1
-        if (totalLiability == 0 || totalCash == 0) {
-            return ETH_UNIT;
-        }
-
-        return totalCash.wdiv(totalLiability);
-    }
-
-    /**
      * @notice Adds asset to pool, reverts if asset already exists in pool
      * @param token The address of token
      * @param asset The address of the platypus Asset contract
@@ -502,14 +451,6 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
             liquidity = amount - fee;
         } else {
             liquidity = ((amount - fee) * totalSupply) / liability;
-        }
-
-        // get equilibrium coverage ratio
-        uint256 eqCov = _getEquilibriumCoverageRatio();
-
-        // apply impairment gain if eqCov < 1
-        if (eqCov < ETH_UNIT) {
-            liquidity = liquidity.wdiv(eqCov);
         }
 
         require(liquidity > 0, 'INSUFFICIENT_LIQ_MINT');
@@ -578,23 +519,12 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
             liabilityToBurn
         );
 
-        // Get equilibrium coverage ratio before withdraw
-        uint256 eqCov = _getEquilibriumCoverageRatio();
-
         // Init enoughCash to true
         enoughCash = true;
 
-        // Apply impairment in the case eqCov < 1
-        uint256 amountAfterImpairment;
-        if (eqCov < ETH_UNIT) {
-            amountAfterImpairment = (liabilityToBurn).wmul(eqCov);
-        } else {
-            amountAfterImpairment = liabilityToBurn;
-        }
-
         // Prevent underflow in case withdrawal fees >= liabilityToBurn, user would only burn his underlying liability
-        if (amountAfterImpairment > fee) {
-            amount = amountAfterImpairment - fee;
+        if (liabilityToBurn > fee) {
+            amount = liabilityToBurn - fee;
 
             // If not enough cash
             if (asset.cash() < amount) {
@@ -603,7 +533,7 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
                 enoughCash = false;
             }
         } else {
-            fee = amountAfterImpairment; // fee overcomes the amount to withdraw. User would be just burning liability
+            fee = liabilityToBurn; // fee overcomes the amount to withdraw. User would be just burning liability
             amount = 0;
             enoughCash = false;
         }
@@ -693,9 +623,6 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
 
         // assets need to be in the same aggregate in order to allow for withdrawing other assets
         require(wantedAsset.aggregateAccount() == initialAsset.aggregateAccount(), 'DIFF_AGG_ACC');
-
-        // check if price deviation is OK between assets
-        _checkPriceDeviation(initialToken, wantedToken);
 
         // Convert liquidity to d.p of initial asset
         uint256 liquidityInInitialAssetDP = (liquidity * 10**initialAsset.decimals()) / (10**wantedAsset.decimals());
@@ -834,9 +761,6 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
         Asset toAsset,
         uint256 fromAmount
     ) private view returns (uint256 idealToAmount) {
-        // check deviation is not higher than specified amount
-        _checkPriceDeviation(fromAsset.underlyingToken(), toAsset.underlyingToken());
-
         // assume perfect peg between assets
         idealToAmount = ((fromAmount * 10**toAsset.decimals()) / 10**fromAsset.decimals());
     }
@@ -939,8 +863,6 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
         whenNotPaused
         returns (uint256 maxInitialAssetAmount)
     {
-        _checkPriceDeviation(initialToken, wantedToken);
-
         Asset initialAsset = _assetOf(initialToken);
         Asset wantedAsset = _assetOf(wantedToken);
 
@@ -962,14 +884,5 @@ contract Pool is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, 
      */
     function getTokenAddresses() external view override returns (address[] memory) {
         return _assets.keys;
-    }
-
-    /**
-     * @notice Recover any funds mistakingly sent to this contract
-     * @param token the address of the token to retrieve
-     */
-    function recoverUserFunds(address token) external onlyDev {
-        uint256 currentBalance = IERC20(token).balanceOf(address(this));
-        IERC20(token).safeTransfer(msg.sender, currentBalance);
     }
 }
