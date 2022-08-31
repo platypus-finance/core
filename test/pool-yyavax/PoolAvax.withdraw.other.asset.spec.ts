@@ -2,7 +2,7 @@ import { ethers } from 'hardhat'
 import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
-import { createAndInitializeToken, fundUserAndApprovePool, setupSAvaxPriceFeed } from '../helpers/helper'
+import { createAndInitializeToken, fundUserAndApprovePool, setupYYAvaxPriceFeed } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { ContractFactory } from '@ethersproject/contracts'
 import { setupAggregateAccount } from '../helpers/helper'
@@ -26,7 +26,7 @@ describe('AvaxPool Withdraw Other Asset', function () {
 
     // Get contracts for Pool, Asset
     TestWAVAX = await ethers.getContractFactory('TestWAVAX')
-    Pool = await ethers.getContractFactory('PoolAvax')
+    Pool = await ethers.getContractFactory('PoolYYAvax')
     Asset = await ethers.getContractFactory('Asset')
     WETHForwarder = await ethers.getContractFactory('WETHForwarder')
   })
@@ -51,11 +51,11 @@ describe('AvaxPool Withdraw Other Asset', function () {
     await this.forwarder.connect(owner).setPool(this.pool.address)
     await this.pool.connect(owner).setWETHForwarder(this.forwarder.address)
 
-    this.benqiStakedAvaxContract = await setupSAvaxPriceFeed(this.pool)
-    await this.benqiStakedAvaxContract.setRate(BigNumber.from('1012287344219239968'))
+    this.yyOracle = await setupYYAvaxPriceFeed(this.pool)
+    await this.yyOracle.setRate(BigNumber.from('1012287344219239968'))
   })
 
-  describe('ETH asset WAVAX and sAVAX', function () {
+  describe('ETH asset WAVAX and yyAVAX', function () {
     beforeEach(async function () {
       const aggregateName = 'Liquid staking AVAX Aggregate'
       const aggregateAccount = await setupAggregateAccount(owner, aggregateName, true)
@@ -71,46 +71,46 @@ describe('AvaxPool Withdraw Other Asset', function () {
       await this.assetAVAX.connect(owner).setPool(this.pool.address)
       await this.pool.connect(owner).addAsset(this.WETH.address, this.assetAVAX.address)
 
-      const tokenSetSAvax = await createAndInitializeToken('sAVAX', 18, owner, this.pool, aggregateAccount)
+      const tokenSetSAvax = await createAndInitializeToken('yyAVAX', 18, owner, this.pool, aggregateAccount)
 
-      this.sAVAX = tokenSetSAvax.token
+      this.yyAVAX = tokenSetSAvax.token
       this.assetSAVAX = tokenSetSAvax.asset
 
-      await this.pool.setSAvax(this.sAVAX.address)
+      await this.pool.setYYAvax(this.yyAVAX.address)
 
-      await fundUserAndApprovePool(this.sAVAX, users[0], parseEther('100000').toString(), this.pool, owner)
+      await fundUserAndApprovePool(this.yyAVAX, users[0], parseEther('100000').toString(), this.pool, owner)
 
-      // 1000 AVAX and 1000 sAVAX
+      // 1000 AVAX and 1000 yyAVAX
       await this.pool
         .connect(users[0])
         .depositETH(users[0].address, this.fiveSecondsSince, { value: parseEther('100') })
       await this.pool
         .connect(users[0])
-        .deposit(this.sAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
+        .deposit(this.yyAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
     })
 
-    // AVAX to sAVAX
-    // should need to send more AVAX than you receive sAVAX
-    it('works to withdraw from other asset of same aggregate AVAX to sAVAX', async function () {
-      // Here we are using our AVAX LP to withdraw sAVAX!
-      // add 70 cash to sAVAX
+    // AVAX to yyAVAX
+    // should need to send more AVAX than you receive yyAVAX
+    it('works to withdraw from other asset of same aggregate AVAX to yyAVAX', async function () {
+      // Here we are using our AVAX LP to withdraw yyAVAX!
+      // add 70 cash to yyAVAX
       await this.assetSAVAX.connect(owner).setPool(owner.address)
       await this.assetSAVAX.connect(owner).addCash(parseEther('70'))
-      await this.sAVAX.connect(owner).transfer(this.assetSAVAX.address, parseEther('70'))
+      await this.yyAVAX.connect(owner).transfer(this.assetSAVAX.address, parseEther('70'))
       await this.assetSAVAX.connect(owner).setPool(this.pool.address)
 
       const maxWithdrawableAmount = await this.pool.quoteMaxInitialAssetWithdrawable(
         this.WETH.address,
-        this.sAVAX.address
+        this.yyAVAX.address
       )
       expect(maxWithdrawableAmount).to.be.equal(parseEther('70.860114095346797760'))
 
-      const beforeBalance = await this.sAVAX.balanceOf(users[0].address)
+      const beforeBalance = await this.yyAVAX.balanceOf(users[0].address)
 
       // quote withdrawal using USDC Asset to withdraw DAI
       const [quotedWithdrawal] = await this.pool.quotePotentialWithdrawFromOtherAsset(
         this.WETH.address,
-        this.sAVAX.address,
+        this.yyAVAX.address,
         parseEther('70')
       )
 
@@ -121,14 +121,14 @@ describe('AvaxPool Withdraw Other Asset', function () {
         .connect(users[0])
         .withdrawFromOtherAsset(
           this.WETH.address,
-          this.sAVAX.address,
+          this.yyAVAX.address,
           parseEther('70'),
           parseEther('0'),
           users[0].address,
           this.fiveSecondsSince
         )
 
-      const afterBalance = await this.sAVAX.balanceOf(users[0].address)
+      const afterBalance = await this.yyAVAX.balanceOf(users[0].address)
 
       // check that quoted withdrawal is the same as amount withdrawn
       expect(afterBalance.sub(beforeBalance)).to.be.equal(quotedWithdrawal)
@@ -149,16 +149,16 @@ describe('AvaxPool Withdraw Other Asset', function () {
         .to.emit(this.pool, 'Withdraw')
         .withArgs(
           users[0].address,
-          this.sAVAX.address,
+          this.yyAVAX.address,
           parseEther('70'),
           parseEther('70.860114095346797760'),
           users[0].address
         )
     })
 
-    /// use sAVAX to withdraw AVAX. We should send less than expected with current rates
-    it('works to withdraw from other asset of same aggregate sAVAX to AVAX', async function () {
-      // Here we are using our sAVAX LP to withdraw AVAX!
+    /// use yyAVAX to withdraw AVAX. We should send less than expected with current rates
+    it('works to withdraw from other asset of same aggregate yyAVAX to AVAX', async function () {
+      // Here we are using our yyAVAX LP to withdraw AVAX!
       // add 25 cash to AVAX
       await this.assetAVAX.connect(owner).setPool(owner.address)
       await this.assetAVAX.connect(owner).addCash(parseEther('25'))
@@ -166,7 +166,7 @@ describe('AvaxPool Withdraw Other Asset', function () {
       await this.assetAVAX.connect(owner).setPool(this.pool.address)
 
       const maxWithdrawableAmount = await this.pool.quoteMaxInitialAssetWithdrawable(
-        this.sAVAX.address,
+        this.yyAVAX.address,
         this.WETH.address
       )
       expect(maxWithdrawableAmount).to.be.equal(parseEther('24.696545049945354502'))
@@ -175,7 +175,7 @@ describe('AvaxPool Withdraw Other Asset', function () {
 
       // quote withdrawal using USDC Asset to withdraw DAI
       const [quotedWithdrawal] = await this.pool.quotePotentialWithdrawFromOtherAsset(
-        this.sAVAX.address,
+        this.yyAVAX.address,
         this.WETH.address,
         parseEther('25')
       )
@@ -186,7 +186,7 @@ describe('AvaxPool Withdraw Other Asset', function () {
       const receipt = await this.pool
         .connect(users[0])
         .withdrawFromOtherAsset(
-          this.sAVAX.address,
+          this.yyAVAX.address,
           this.WETH.address,
           parseEther('25'),
           parseEther('0'),

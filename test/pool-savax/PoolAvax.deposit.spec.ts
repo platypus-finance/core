@@ -29,7 +29,7 @@ describe('AvaxPool Deposit', function () {
     // Get contracts for TestERC20, Pool, Asset and LPToken
     TestERC20 = await ethers.getContractFactory('TestERC20')
     TestWAVAX = await ethers.getContractFactory('TestWAVAX')
-    Pool = await ethers.getContractFactory('PoolAvax')
+    Pool = await ethers.getContractFactory('PoolSAvax')
     Asset = await ethers.getContractFactory('Asset')
     WETHForwarder = await ethers.getContractFactory('WETHForwarder')
   })

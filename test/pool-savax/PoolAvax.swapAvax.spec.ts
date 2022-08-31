@@ -9,7 +9,7 @@ import {
   fundUserAndApprovePool,
   expectAssetValues,
   setupAggregateAccount,
-  setupAvaxPool,
+  setupSAvaxPool,
   setupSAvaxPriceFeed,
 } from '../helpers/helper'
 
@@ -38,7 +38,7 @@ describe('AvaxPool Swap Avax', function () {
     this.fiveSecondsAgo = this.lastBlockTime - 5 * 1000
 
     // avax pool
-    const poolSetup = await setupAvaxPool(owner)
+    const poolSetup = await setupSAvaxPool(owner)
     this.pool = poolSetup.pool
     this.WETH = poolSetup.WETH
 
