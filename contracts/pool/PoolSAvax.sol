@@ -18,7 +18,7 @@ import '../interfaces/IWETH.sol';
 import '../interfaces/IWETHForwarder.sol';
 
 /**
- * @title PoolAvax
+ * @title PoolSAvax
  * @notice Manages deposits, withdrawals and swaps. Holds a mapping of assets and parameters.
  * @dev The main entry-point of Platypus protocol
  *
@@ -36,7 +36,7 @@ import '../interfaces/IWETHForwarder.sol';
  * BenQI StakedAvax contract Mainnet : 0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE
  * Can only handle WAVAX and sAVAX
  */
-contract PoolAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
+contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Core, IPool {
     using DSMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20Upgradeable for IERC20Upgradeable;

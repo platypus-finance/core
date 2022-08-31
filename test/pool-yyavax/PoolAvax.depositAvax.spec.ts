@@ -28,7 +28,7 @@ describe('AvaxPool Deposit Avax', function () {
     // Get contracts for TestERC20, Pool, Asset and LPToken
     TestERC20 = await ethers.getContractFactory('TestERC20')
     TestWAVAX = await ethers.getContractFactory('TestWAVAX')
-    Pool = await ethers.getContractFactory('PoolAvax')
+    Pool = await ethers.getContractFactory('PoolYYAvax')
     Asset = await ethers.getContractFactory('Asset')
     WETHForwarder = await ethers.getContractFactory('WETHForwarder')
   })
@@ -352,7 +352,7 @@ describe('AvaxPool Deposit Avax', function () {
     })
   })
 
-  describe('Asset sAVAX', function () {
+  describe('Asset yyAVAX', function () {
     beforeEach(async function () {
       const aggregateName = 'Liquid staking AVAX Aggregate'
       const aggregateAccount = await setupAggregateAccount(owner, aggregateName, true)
@@ -368,30 +368,30 @@ describe('AvaxPool Deposit Avax', function () {
       await this.asset.connect(owner).setPool(this.pool.address)
       await this.pool.connect(owner).addAsset(this.WETH.address, this.asset.address)
 
-      const tokenSetSAvax = await createAndInitializeToken('sAVAX', 18, owner, this.pool, aggregateAccount)
+      const tokenSetSAvax = await createAndInitializeToken('yyAVAX', 18, owner, this.pool, aggregateAccount)
 
-      this.sAVAX = tokenSetSAvax.token
+      this.yyAVAX = tokenSetSAvax.token
       this.asset = tokenSetSAvax.asset
 
-      await fundUserAndApprovePool(this.sAVAX, users[0], parseEther('100000').toString(), this.pool, owner)
+      await fundUserAndApprovePool(this.yyAVAX, users[0], parseEther('100000').toString(), this.pool, owner)
     })
 
     describe('deposit', function () {
       beforeEach(async function () {
         // Transfer 100k from contrac to users[0]
-        await this.sAVAX.connect(owner).transfer(users[0].address, parseEther('100000')) // 100 k
+        await this.yyAVAX.connect(owner).transfer(users[0].address, parseEther('100000')) // 100 k
         // Approve max allowance from users[0] to pool
-        await this.sAVAX.connect(users[0]).approve(this.pool.address, ethers.constants.MaxUint256)
+        await this.yyAVAX.connect(users[0]).approve(this.pool.address, ethers.constants.MaxUint256)
       })
 
       it('works (first LP)', async function () {
-        // Get sAVAX balance of user[0]
-        const beforeBalance = await this.sAVAX.balanceOf(users[0].address)
-        // Deposit from user[0] to pool 100 sAVAX
+        // Get yyAVAX balance of user[0]
+        const beforeBalance = await this.yyAVAX.balanceOf(users[0].address)
+        // Deposit from user[0] to pool 100 yyAVAX
         const receipt = await this.pool
           .connect(users[0])
-          .deposit(this.sAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
-        const afterBalance = await this.sAVAX.balanceOf(users[0].address)
+          .deposit(this.yyAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
+        const afterBalance = await this.yyAVAX.balanceOf(users[0].address)
 
         expect(await this.asset.cash()).to.be.equal(parseEther('100'))
         expect(await this.asset.liability()).to.be.equal(parseEther('100'))
@@ -402,21 +402,21 @@ describe('AvaxPool Deposit Avax', function () {
 
         await expect(receipt)
           .to.emit(this.pool, 'Deposit')
-          .withArgs(users[0].address, this.sAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
+          .withArgs(users[0].address, this.yyAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
       })
 
       it('works (second LP)', async function () {
-        // Deposit from user[0] to pool 100 sAVAX
+        // Deposit from user[0] to pool 100 yyAVAX
         await this.pool
           .connect(users[0])
-          .deposit(this.sAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
+          .deposit(this.yyAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
 
-        await this.sAVAX.connect(owner).transfer(users[1].address, parseEther('100000'))
-        await this.sAVAX.connect(users[1]).approve(this.pool.address, ethers.constants.MaxUint256)
-        // Deposit from user[1] to pool 100 sAVAX
+        await this.yyAVAX.connect(owner).transfer(users[1].address, parseEther('100000'))
+        await this.yyAVAX.connect(users[1]).approve(this.pool.address, ethers.constants.MaxUint256)
+        // Deposit from user[1] to pool 100 yyAVAX
         await this.pool
           .connect(users[1])
-          .deposit(this.sAVAX.address, parseEther('100'), users[1].address, this.fiveSecondsSince)
+          .deposit(this.yyAVAX.address, parseEther('100'), users[1].address, this.fiveSecondsSince)
 
         expect(await this.asset.cash()).to.be.equal(parseEther('200'))
         expect(await this.asset.liability()).to.be.equal(parseEther('200'))
@@ -433,7 +433,7 @@ describe('AvaxPool Deposit Avax', function () {
         await expect(
           this.pool
             .connect(users[0])
-            .deposit(this.sAVAX.address, parseEther('101'), users[2].address, this.fiveSecondsSince)
+            .deposit(this.yyAVAX.address, parseEther('101'), users[2].address, this.fiveSecondsSince)
         ).to.be.revertedWith('MAX_SUPPLY_REACHED')
 
         await this.asset.connect(owner).setMaxSupply(ethers.utils.parseEther('0'))
@@ -441,19 +441,19 @@ describe('AvaxPool Deposit Avax', function () {
         await expect(
           this.pool
             .connect(users[0])
-            .deposit(this.sAVAX.address, parseEther('101'), users[2].address, this.fiveSecondsSince)
+            .deposit(this.yyAVAX.address, parseEther('101'), users[2].address, this.fiveSecondsSince)
         ).to.be.ok
       })
 
       it('applies deposit fee when cov > 1 to prevent deposit arbitrage', async function () {
-        // First deposit 100 sAVAX
-        // Get sAVAX balance of user[0]
-        const beforeBalance = await this.sAVAX.balanceOf(users[0].address)
-        // Deposit from user[0] to pool 100 sAVAX
+        // First deposit 100 yyAVAX
+        // Get yyAVAX balance of user[0]
+        const beforeBalance = await this.yyAVAX.balanceOf(users[0].address)
+        // Deposit from user[0] to pool 100 yyAVAX
         const receipt = await this.pool
           .connect(users[0])
-          .deposit(this.sAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
-        const afterBalance = await this.sAVAX.balanceOf(users[0].address)
+          .deposit(this.yyAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
+        const afterBalance = await this.yyAVAX.balanceOf(users[0].address)
 
         expect(await this.asset.cash()).to.be.equal(parseEther('100'))
         expect(await this.asset.liability()).to.be.equal(parseEther('100'))
@@ -464,11 +464,11 @@ describe('AvaxPool Deposit Avax', function () {
 
         await expect(receipt)
           .to.emit(this.pool, 'Deposit')
-          .withArgs(users[0].address, this.sAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
+          .withArgs(users[0].address, this.yyAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
 
         // Next, adjust coverage ratio to = 2 > 1
         await this.asset.connect(owner).setPool(owner.address)
-        await this.sAVAX.connect(owner).transfer(this.asset.address, parseEther('100')) // transfer sAVAX to Asset to back
+        await this.yyAVAX.connect(owner).transfer(this.asset.address, parseEther('100')) // transfer yyAVAX to Asset to back
         await this.asset.connect(owner).addCash(parseEther('100'))
         // await this.asset.connect(owner).transferToken(owner.address, parseEther('40'))
         await this.asset.connect(owner).setPool(this.pool.address)
@@ -477,11 +477,11 @@ describe('AvaxPool Deposit Avax', function () {
         // Now that cov = 2 > 1
         // A = 200 , L = 100
         // try to deposit again
-        // Deposit from user[0] to pool 100 sAVAX
+        // Deposit from user[0] to pool 100 yyAVAX
         await this.pool
           .connect(users[0])
-          .deposit(this.sAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
-        const afterBalance2 = await this.sAVAX.balanceOf(users[0].address)
+          .deposit(this.yyAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince)
+        const afterBalance2 = await this.yyAVAX.balanceOf(users[0].address)
 
         expect(await this.asset.cash()).to.be.equal(parseEther('300')) // Assets = 200 + 100
         expect(await this.asset.liability()).to.be.equal(parseEther('199.999781514346136200'))
@@ -492,20 +492,20 @@ describe('AvaxPool Deposit Avax', function () {
 
         await expect(receipt)
           .to.emit(this.pool, 'Deposit')
-          .withArgs(users[0].address, this.sAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
+          .withArgs(users[0].address, this.yyAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
 
         // Now, try to withdraw 100 and see if we can perform arbitrage : if amount withdrawn is > 100
-        const beforeBalance3 = await this.sAVAX.balanceOf(users[0].address)
+        const beforeBalance3 = await this.yyAVAX.balanceOf(users[0].address)
 
-        const [quotedWithdrawal] = await this.pool.quotePotentialWithdraw(this.sAVAX.address, parseEther('100'))
+        const [quotedWithdrawal] = await this.pool.quotePotentialWithdraw(this.yyAVAX.address, parseEther('100'))
 
         // approve asset spending by pool
         await this.asset.connect(users[0]).approve(this.pool.address, ethers.constants.MaxUint256)
 
         const receipt3 = await this.pool
           .connect(users[0])
-          .withdraw(this.sAVAX.address, parseEther('100'), parseEther('0'), users[0].address, this.fiveSecondsSince)
-        const afterBalance3 = await this.sAVAX.balanceOf(users[0].address)
+          .withdraw(this.yyAVAX.address, parseEther('100'), parseEther('0'), users[0].address, this.fiveSecondsSince)
+        const afterBalance3 = await this.yyAVAX.balanceOf(users[0].address)
 
         // check that quoted withdrawal is the same as amount withdrawn
         expect(afterBalance3.sub(beforeBalance3)).to.be.equal(quotedWithdrawal)
@@ -520,14 +520,14 @@ describe('AvaxPool Deposit Avax', function () {
 
         expect(receipt3)
           .to.emit(this.pool, 'Withdraw')
-          .withArgs(users[0].address, this.sAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
+          .withArgs(users[0].address, this.yyAVAX.address, parseEther('100'), parseEther('100'), users[0].address)
       })
 
       it('reverts if passed deadline', async function () {
         await expect(
           this.pool
             .connect(users[0])
-            .deposit(this.sAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsAgo),
+            .deposit(this.yyAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsAgo),
           'EXPIRED'
         ).to.be.reverted
       })
@@ -536,17 +536,17 @@ describe('AvaxPool Deposit Avax', function () {
         await expect(
           this.pool
             .connect(users[0])
-            .deposit(this.sAVAX.address, parseEther('0'), users[0].address, this.fiveSecondsSince),
+            .deposit(this.yyAVAX.address, parseEther('0'), users[0].address, this.fiveSecondsSince),
           'INSUFFICIENT_LIQUIDITY_MINTED'
         ).to.be.reverted
       })
 
       it('reverts if liquidity provider does not have enough balance', async function () {
-        await this.sAVAX.connect(users[1]).approve(this.pool.address, ethers.constants.MaxUint256)
+        await this.yyAVAX.connect(users[1]).approve(this.pool.address, ethers.constants.MaxUint256)
         await expect(
           this.pool
             .connect(users[1])
-            .deposit(this.sAVAX.address, parseEther('100'), users[1].address, this.fiveSecondsSince),
+            .deposit(this.yyAVAX.address, parseEther('100'), users[1].address, this.fiveSecondsSince),
           'ERC20: transfer amount exceeds balance'
         ).to.be.reverted
       })
@@ -556,7 +556,7 @@ describe('AvaxPool Deposit Avax', function () {
         await expect(
           this.pool
             .connect(users[0])
-            .deposit(this.sAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince),
+            .deposit(this.yyAVAX.address, parseEther('100'), users[0].address, this.fiveSecondsSince),
           'Pausable: paused'
         ).to.be.reverted
       })

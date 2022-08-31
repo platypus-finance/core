@@ -22,7 +22,7 @@ export function toWei(amount: BigNumberish, tokenDecimals: BigNumberish): BigNum
 let TestERC20: ContractFactory
 let Asset: ContractFactory
 let Pool: ContractFactory
-let PoolAvax: ContractFactory
+let PoolYYAvax: ContractFactory
 let AggregateAccount: ContractFactory
 let WETHForwarder: ContractFactory
 let TestWAVAX: ContractFactory
@@ -73,11 +73,32 @@ export const setupSecondaryPurePool = async (owner: Signer): Promise<{ pool: Con
   return { pool }
 }
 
-export const setupAvaxPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
-  PoolAvax = await ethers.getContractFactory('PoolAvax')
+export const setupSAvaxPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
+  PoolYYAvax = await ethers.getContractFactory('PoolSAvax')
   WETHForwarder = await ethers.getContractFactory('WETHForwarder')
 
-  const pool = await PoolAvax.connect(owner).deploy()
+  const pool = await PoolYYAvax.connect(owner).deploy()
+  const WETH = await TestWAVAX.connect(owner).deploy()
+
+  // Wait for contract to be deployed
+  await pool.deployTransaction.wait()
+  await WETH.deployTransaction.wait()
+
+  await pool.connect(owner).initialize(WETH.address)
+
+  // Set WETH Forwarder
+  const forwarder = await WETHForwarder.connect(owner).deploy(WETH.address)
+  await forwarder.connect(owner).setPool(pool.address)
+  await pool.connect(owner).setWETHForwarder(forwarder.address)
+
+  return { pool, WETH }
+}
+
+export const setupYYAvaxPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
+  PoolYYAvax = await ethers.getContractFactory('PoolYYAvax')
+  WETHForwarder = await ethers.getContractFactory('WETHForwarder')
+
+  const pool = await PoolYYAvax.connect(owner).deploy()
   const WETH = await TestWAVAX.connect(owner).deploy()
 
   // Wait for contract to be deployed
@@ -217,4 +238,12 @@ export const setupSAvaxPriceFeed = async (pool: Contract): Promise<Contract> => 
 
   await pool.setPriceOracle(testStakedAvax.address)
   return testStakedAvax
+}
+
+export const setupYYAvaxPriceFeed = async (pool: Contract): Promise<Contract> => {
+  const testYYOracleFactory = await ethers.getContractFactory('TestYYOracle')
+  const testYYOracle = await testYYOracleFactory.deploy()
+
+  await pool.setPriceOracle(testYYOracle.address)
+  return testYYOracle
 }
