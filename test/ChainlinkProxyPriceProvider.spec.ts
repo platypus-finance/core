@@ -2,7 +2,7 @@ import { ethers } from 'hardhat'
 import chai from 'chai'
 import { ContractFactory } from 'ethers'
 import { solidity } from 'ethereum-waffle'
-import { parseEther } from '@ethersproject/units'
+import { parseEther, parseUnits } from '@ethersproject/units'
 
 chai.use(solidity)
 const { expect } = chai
@@ -11,6 +11,8 @@ describe('ChainlinkProxyPriceProvider', function () {
   let owner, users
   let ChainlinkProxyPriceProvider: ContractFactory
   let TestChainlinkAggregator: ContractFactory
+  let ConstantChainlinkAggregator: ContractFactory
+
 
   beforeEach(async function () {
     const [first, ...rest] = await ethers.getSigners()
@@ -19,6 +21,7 @@ describe('ChainlinkProxyPriceProvider', function () {
 
     ChainlinkProxyPriceProvider = await ethers.getContractFactory('ChainlinkProxyPriceProvider')
     TestChainlinkAggregator = await ethers.getContractFactory('TestChainlinkAggregator')
+    ConstantChainlinkAggregator = await ethers.getContractFactory('ConstantChainlinkAggregator')
   })
 
   beforeEach(async function () {
@@ -35,17 +38,23 @@ describe('ChainlinkProxyPriceProvider', function () {
     this.DAIAddress = '0xbA7dEebBFC5fA1100Fb055a87773e1E99Cd3507a'
     this.WAVAXAddress = '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7'
 
+    this.USPAddress = '0x2E12576A13d610508A320aeCe98c7fC9eeF17A67'
+    this.USPUSD = await ConstantChainlinkAggregator.deploy()
+
     this.provider = await ChainlinkProxyPriceProvider.connect(owner).deploy(
-      [this.USDTAddress, this.LINKAddress],
-      [this.USDTAVAX.address, this.LINKAVAX.address]
+      [this.USDTAddress, this.LINKAddress, this.USPAddress],
+      [this.USDTAVAX.address, this.LINKAVAX.address, this.USPUSD.address],
     )
-    // await this.provider.connect(owner).setETHAddress(this.WAVAXAddress)
+
   })
 
   describe('getAssetPrice', function () {
     it('gets an asset price by address', async function () {
       expect(await this.provider.getAssetPrice(this.USDTAddress)).to.be.equal(parseEther('0.001677'))
       expect(await this.provider.getAssetPrice(this.LINKAddress)).to.be.equal(parseEther('0.02496761'))
+      expect(await this.provider.getAssetPrice(this.USPAddress)).to.be.equal(parseUnits('1', 8))
+
+      expect(await this.USPUSD.latestAnswer()).to.be.equal(parseUnits('1', 8))
     })
 
     it('reverts if asset has no source', async function () {
