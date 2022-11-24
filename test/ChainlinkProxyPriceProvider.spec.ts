@@ -13,7 +13,6 @@ describe('ChainlinkProxyPriceProvider', function () {
   let TestChainlinkAggregator: ContractFactory
   let ConstantChainlinkAggregator: ContractFactory
 
-
   beforeEach(async function () {
     const [first, ...rest] = await ethers.getSigners()
     owner = first
@@ -43,9 +42,8 @@ describe('ChainlinkProxyPriceProvider', function () {
 
     this.provider = await ChainlinkProxyPriceProvider.connect(owner).deploy(
       [this.USDTAddress, this.LINKAddress, this.USPAddress],
-      [this.USDTAVAX.address, this.LINKAVAX.address, this.USPUSD.address],
+      [this.USDTAVAX.address, this.LINKAVAX.address, this.USPUSD.address]
     )
-
   })
 
   describe('getAssetPrice', function () {
