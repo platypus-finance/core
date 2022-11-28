@@ -23,6 +23,7 @@ let TestERC20: ContractFactory
 let Asset: ContractFactory
 let Pool: ContractFactory
 let PoolYYAvax: ContractFactory
+let PoolAAvaxC: ContractFactory
 let AggregateAccount: ContractFactory
 let WETHForwarder: ContractFactory
 let TestWAVAX: ContractFactory
@@ -99,6 +100,27 @@ export const setupYYAvaxPool = async (owner: Signer): Promise<{ pool: Contract; 
   WETHForwarder = await ethers.getContractFactory('WETHForwarder')
 
   const pool = await PoolYYAvax.connect(owner).deploy()
+  const WETH = await TestWAVAX.connect(owner).deploy()
+
+  // Wait for contract to be deployed
+  await pool.deployTransaction.wait()
+  await WETH.deployTransaction.wait()
+
+  await pool.connect(owner).initialize(WETH.address)
+
+  // Set WETH Forwarder
+  const forwarder = await WETHForwarder.connect(owner).deploy(WETH.address)
+  await forwarder.connect(owner).setPool(pool.address)
+  await pool.connect(owner).setWETHForwarder(forwarder.address)
+
+  return { pool, WETH }
+}
+
+export const setupAAvaxCPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
+  PoolAAvaxC = await ethers.getContractFactory('PoolAAvaxC')
+  WETHForwarder = await ethers.getContractFactory('WETHForwarder')
+
+  const pool = await PoolAAvaxC.connect(owner).deploy()
   const WETH = await TestWAVAX.connect(owner).deploy()
 
   // Wait for contract to be deployed
@@ -246,4 +268,12 @@ export const setupYYAvaxPriceFeed = async (pool: Contract): Promise<Contract> =>
 
   await pool.setPriceOracle(testYYOracle.address)
   return testYYOracle
+}
+
+export const setupAAvaxCPriceFeed = async (pool: Contract): Promise<Contract> => {
+  const testAAvaxCFactory = await ethers.getContractFactory('TestAAvaxC')
+  const testAAvaxCOracle = await testAAvaxCFactory.deploy()
+
+  await pool.setPriceOracle(testAAvaxCOracle.address)
+  return testAAvaxCOracle
 }
