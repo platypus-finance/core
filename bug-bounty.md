@@ -4,8 +4,6 @@
 
 The [Platypus Finance Core Repository](https://github.com/platypus-finance/core) repository is subject to a Bug Bounty Program to incentivize responsible bug disclosure.
 
-Offering rewards of up to 100,000 PTP. Happy hunting!
-
 ## Scope
 
 The scope of the Program is limited to bugs that result in the draining of contract funds.
