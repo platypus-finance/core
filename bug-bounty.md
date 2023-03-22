@@ -47,7 +47,7 @@ Anyone who reports a unique, previously-unreported vulnerability that results in
 To be eligible for a reward under this Program, you must:
 
 - Discover a previously unreported, non-public vulnerability that would result in a loss of and/or lock on any ERC-20 token on Platypus Finance (but not on any third party platform interacting with Platypus Finance) and that is within the scope of this Program. Vulnerabilities must be distinct from the issues covered in the previous Audits.
-- Be the first to disclose the unique vulnerability [here](https://firebasehostingproxy.page.link/198886819888/forms.gle/cz5QPARFTjoM72Rj8), in compliance with the disclosure requirements above. If similar vulnerabilities are reported within the same 24 hour period, rewards will be split at the discretion of Platypus Finance team.
+- Be the first to disclose the unique vulnerability, in compliance with the disclosure requirements above. If similar vulnerabilities are reported within the same 24 hour period, rewards will be split at the discretion of Platypus Finance team.
 - Provide sufficient information to enable our engineers to reproduce and fix the vulnerability.
 - Not engage in any unlawful conduct when disclosing the bug, including through threats, demands, or any other coercive tactics.
 - Not exploit the vulnerability in any way, including through making it public or by obtaining a profit (other than a reward under this Program).
