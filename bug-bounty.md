@@ -30,7 +30,7 @@ Rewards will be allocated based on the severity of the bug disclosed and will be
 
 ## Disclosure
 
-Any vulnerability or bug discovered must be reported only [here](https://firebasehostingproxy.page.link/198886819888/forms.gle/cz5QPARFTjoM72Rj8).
+Any vulnerability or bug discovered must be reported only.
 
 The vulnerability must not be disclosed publicly or to any other person, entity or email address before Platypus Finance has been notified, has fixed the issue, and has granted permission for public disclosure. In addition, disclosure must be made within 24 hours following discovery of the vulnerability.
 
