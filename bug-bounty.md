@@ -30,8 +30,6 @@ Rewards will be allocated based on the severity of the bug disclosed and will be
 
 ## Disclosure
 
-Any vulnerability or bug discovered must be reported only.
-
 The vulnerability must not be disclosed publicly or to any other person, entity or email address before Platypus Finance has been notified, has fixed the issue, and has granted permission for public disclosure. In addition, disclosure must be made within 24 hours following discovery of the vulnerability.
 
 A detailed report of a vulnerability increases the likelihood of a reward and may increase the reward amount. Please provide as much information about the vulnerability as possible, including:
