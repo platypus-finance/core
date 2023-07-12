@@ -3,6 +3,7 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { BigNumber, BigNumberish, Contract, ContractFactory, Signer } from 'ethers'
 import { solidity } from 'ethereum-waffle'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 const { expect } = chai
 chai.use(solidity)
@@ -23,7 +24,7 @@ let TestERC20: ContractFactory
 let Asset: ContractFactory
 let Pool: ContractFactory
 let PoolYYAvax: ContractFactory
-let PoolAAvaxC: ContractFactory
+let PoolAnkrETH: ContractFactory
 let AggregateAccount: ContractFactory
 let WETHForwarder: ContractFactory
 let TestWAVAX: ContractFactory
@@ -117,10 +118,10 @@ export const setupYYAvaxPool = async (owner: Signer): Promise<{ pool: Contract; 
 }
 
 export const setupAAvaxCPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
-  PoolAAvaxC = await ethers.getContractFactory('PoolAAvaxC')
+  PoolAnkrETH = await ethers.getContractFactory('PoolAAvaxC')
   WETHForwarder = await ethers.getContractFactory('WETHForwarder')
 
-  const pool = await PoolAAvaxC.connect(owner).deploy()
+  const pool = await PoolAnkrETH.connect(owner).deploy()
   const WETH = await TestWAVAX.connect(owner).deploy()
 
   // Wait for contract to be deployed
@@ -137,6 +138,19 @@ export const setupAAvaxCPool = async (owner: Signer): Promise<{ pool: Contract; 
   return { pool, WETH }
 }
 
+export const setupAnkrETHPool = async (owner: Signer): Promise<{ pool: Contract }> => {
+  PoolAnkrETH = await ethers.getContractFactory('PoolAnkrETH')
+
+  const pool = await PoolAnkrETH.connect(owner).deploy()
+
+  // Wait for contract to be deployed
+  await pool.deployTransaction.wait()
+
+  await pool.connect(owner).initialize()
+
+  return { pool }
+}
+
 export const createAndInitializeToken = async (
   symbol: string,
   decimal: number,
@@ -144,7 +158,7 @@ export const createAndInitializeToken = async (
   pool: Contract,
   aggregateAccount: Contract
 ): Promise<{ token: Contract; asset: Contract }> => {
-  const token = await TestERC20.connect(owner).deploy(symbol, symbol, decimal, parseEther('1000000000000')) // 1000 M
+  const token = await TestERC20.connect(owner).deploy(symbol, symbol, decimal, parseEther('10000000000000000000000'))
   const asset = await Asset.connect(owner).deploy()
   await asset.deployTransaction.wait()
   await asset.connect(owner).initialize(token.address, 'test', 'test', aggregateAccount.address)
@@ -223,6 +237,71 @@ interface Chainlink {
   initialRate: string
 }
 
+// export const addAssetCashAndLiability = async (
+//   asset: Contract,
+//   owner: SignerWithAddress,
+//   cash: BigNumber,
+//   liability: BigNumber
+// ): Promise<void> => {
+//   const pool = await asset.pool()
+//   await asset.connect(owner).setPool(owner.address)
+//   await asset.connect(owner).addCash(cash)
+//   await asset.connect(owner).addLiability(liability)
+//   await asset.connect(owner).setPool(pool)
+// }
+
+//       await initAssetWithValues(
+//         this.USDC,
+//   this.assetUSDC,
+//   owner,
+//   this.pool,
+//   usdc('920270.929028'), // total supply
+//   usdc('771551.875499'), // cash
+//   usdc('916403.145845') // liability
+// )
+export const initAssetWithValues = async (
+  token: Contract,
+  asset: Contract,
+  owner: SignerWithAddress,
+  pool: Contract,
+  totalSupply: BigNumber,
+  cash: BigNumber,
+  liability: BigNumber
+): Promise<void> => {
+  expect(await asset.underlyingToken()).to.be.equal(token.address)
+
+  const fiveSecondsSince = (await ethers.provider.getBlock('latest')).timestamp + 5 * 1000
+
+  await token.approve(pool.address, totalSupply)
+
+  await pool.connect(owner).deposit(asset.underlyingToken(), totalSupply, owner.address, fiveSecondsSince)
+
+  await asset.connect(owner).setPool(owner.address)
+
+  if (totalSupply.lt(cash)) {
+    await asset.connect(owner).addCash(cash.sub(totalSupply))
+    await token.connect(owner).transfer(asset.address, cash.sub(totalSupply))
+  } else if (totalSupply.gt(cash)) {
+    await asset.connect(owner).removeCash(totalSupply.sub(cash))
+    await asset.connect(owner).transferUnderlyingToken(owner.address, totalSupply.sub(cash))
+  }
+
+  if (totalSupply.lt(liability)) {
+    await asset.connect(owner).addLiability(liability.sub(totalSupply))
+  } else if (totalSupply.gt(liability)) {
+    await asset.connect(owner).removeLiability(totalSupply.sub(liability))
+  }
+
+  await asset.connect(owner).setPool(pool.address)
+
+  // sanity checks
+  expect(await asset.cash()).to.be.equal(cash)
+  expect(await asset.liability()).to.be.equal(liability)
+  expect(await asset.underlyingTokenBalance()).to.be.equal(cash)
+  expect(await asset.pool()).to.be.equal(pool.address)
+  expect(await asset.totalSupply()).to.be.equal(totalSupply)
+}
+
 export const setPriceOracle = async (
   // WETH: Contract,
   pool: Contract,
@@ -276,4 +355,12 @@ export const setupAAvaxCPriceFeed = async (pool: Contract): Promise<Contract> =>
 
   await pool.setPriceOracle(testAAvaxCOracle.address)
   return testAAvaxCOracle
+}
+
+export const setupAnkrETHPriceFeed = async (pool: Contract): Promise<Contract> => {
+  const testAnkrETHFactory = await ethers.getContractFactory('TestAnkrETHOracle')
+  const testAnkrETHOracle = await testAnkrETHFactory.deploy()
+
+  await pool.setPriceOracle(testAnkrETHOracle.address)
+  return testAnkrETHOracle
 }

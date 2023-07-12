@@ -153,7 +153,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
      * @notice Initializes pool. Dev is set to be the account calling this function.
      */
     function initialize(address weth_) external initializer {
-        require(weth_ != address(0), 'PTL:WETH address cannot be zero');
+        require(weth_ != address(0), 'PTL:WETH address cannot be Z');
         __Ownable_init();
         __ReentrancyGuard_init_unchained();
         __Pausable_init_unchained();
@@ -267,7 +267,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
      * @param dev new contract dev address
      */
     function setDev(address dev) external onlyOwner {
-        require(dev != address(0), 'ZERO');
+        require(dev != address(0), 'Z');
         emit DevUpdated(_dev, dev);
         _dev = dev;
     }
@@ -277,7 +277,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
      * @param sAvax_ the new sAVAX address
      */
     function setSAvax(address sAvax_) external onlyOwner {
-        require(sAvax_ != address(0), 'ZERO');
+        require(sAvax_ != address(0), 'Z');
         emit SAvaxUpdated(sAvax, sAvax_);
         sAvax = sAvax_;
     }
@@ -349,7 +349,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
      * @param priceOracle new pool's priceOracle addres
      */
     function setPriceOracle(address priceOracle) external onlyOwner {
-        require(priceOracle != address(0), 'ZERO');
+        require(priceOracle != address(0), 'Z');
         emit OracleUpdated(address(_priceOracle), priceOracle);
         _priceOracle = IStakedAvax(priceOracle);
     }
@@ -438,8 +438,8 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
      * @param asset The address of the platypus Asset contract
      */
     function addAsset(address token, address asset) external onlyOwner {
-        require(token != address(0), 'ZERO');
-        require(asset != address(0), 'ZERO');
+        require(token != address(0), 'Z');
+        require(asset != address(0), 'Z');
         require(!_containsAsset(token), 'ASSET_EXISTS');
 
         _addAsset(token, Asset(asset));
@@ -452,7 +452,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
      * @param token The address of ERC20 token
      */
     function _assetOf(address token) private view returns (Asset) {
-        require(_containsAsset(token), 'ASSET_NOT_EXIST');
+        require(_containsAsset(token), 'ASST_N_EX');
         return _getAsset(token);
     }
 
@@ -511,9 +511,9 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address to,
         uint256 deadline
     ) external override ensure(deadline) nonReentrant whenNotPaused returns (uint256 liquidity) {
-        require(amount > 0, 'ZERO_AMOUNT');
-        require(token != address(0), 'ZERO');
-        require(to != address(0), 'ZERO');
+        require(amount > 0, 'Z_AM');
+        require(token != address(0), 'Z');
+        require(to != address(0), 'Z');
 
         IERC20 erc20 = IERC20(token);
         Asset asset = _assetOf(token);
@@ -533,7 +533,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         returns (uint256 liquidity)
     {
         uint256 amount = msg.value;
-        require(amount > 0, 'PTP:ZERO_VALUE');
+        require(amount > 0, 'Z_VALUE');
 
         IERC20 erc20 = IERC20(weth);
         Asset asset = _assetOf(weth);
@@ -614,7 +614,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         uint256 liabilityToBurn;
         (amount, liabilityToBurn, , ) = _withdrawFrom(asset, liquidity);
 
-        require(minimumAmount <= amount, 'AMOUNT_TOO_LOW');
+        require(minimumAmount <= amount, 'AM_TOO_LOW');
 
         asset.burn(msg.sender, liquidity);
         asset.removeCash(amount);
@@ -638,9 +638,9 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address to,
         uint256 deadline
     ) external override ensure(deadline) nonReentrant whenNotPaused returns (uint256 amount) {
-        require(liquidity > 0, 'ZERO_ASSET_AMOUNT');
-        require(token != address(0), 'ZERO');
-        require(to != address(0), 'ZERO');
+        require(liquidity > 0, 'Z_ASSET_AM');
+        require(token != address(0), 'Z');
+        require(to != address(0), 'Z');
 
         Asset asset = _assetOf(token);
 
@@ -692,10 +692,10 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address to,
         uint256 deadline
     ) external override ensure(deadline) nonReentrant whenNotPaused returns (uint256 amount) {
-        require(liquidity > 0, 'ZERO_ASSET_AMOUNT');
-        require(wantedToken != address(0), 'ZERO');
-        require(initialToken != address(0), 'ZERO');
-        require(to != address(0), 'ZERO');
+        require(liquidity > 0, 'Z_ASSET_AM');
+        require(wantedToken != address(0), 'Z');
+        require(initialToken != address(0), 'Z');
+        require(to != address(0), 'Z');
 
         // get corresponding assets
         Asset initialAsset = _assetOf(initialToken);
@@ -705,9 +705,12 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         require(wantedAsset.aggregateAccount() == initialAsset.aggregateAccount(), 'DIFF_AGG_ACC');
 
         // Convert liquidity to d.p of initial asset
-        uint256 liquidityInInitialAssetDP = (liquidity * 10**initialAsset.decimals()) / (10**wantedAsset.decimals());
+        uint256 liquidityInInitialAssetDP = (((liquidity * (10**initialAsset.decimals())) /
+            (10**wantedAsset.decimals())) *
+            wantedAsset.liability() *
+            initialAsset.totalSupply()) / (initialAsset.liability() * wantedAsset.totalSupply());
 
-        require(sAvax != address(0), 'sAVAX_NOT_SET');
+        require(sAvax != address(0), 'sAVAX_N_SET');
         uint256 sAvaxRate = _priceOracle.getPooledAvaxByShares(1e18);
         require(sAvaxRate > 0, 'INVALID_PRICE');
 
@@ -737,13 +740,13 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         (amount, , , enoughCash) = _withdrawFrom(wantedAsset, liquidity);
 
         // If not enough cash in wanted asset, revert
-        require(enoughCash, 'NOT_ENOUGH_CASH');
+        require(enoughCash, 'N_ENOUGH_CASH');
 
         // require after withdrawal coverage to >= 1
         require((wantedAsset.cash() - amount).wdiv(wantedAsset.liability()) >= ETH_UNIT, 'COV_RATIO_LOW');
 
         // require amount to be higher than the amount specified
-        require(minimumAmount <= amount, 'AMOUNT_TOO_LOW');
+        require(minimumAmount <= amount, 'AM_TOO_LOW');
 
         // calculate liability to burn in initialAsset
         uint256 liabilityToBurn = (initialAsset.liability() * liquidityInInitialAssetDP) / initialAsset.totalSupply();
@@ -782,11 +785,11 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address to,
         uint256 deadline
     ) external override ensure(deadline) nonReentrant whenNotPaused returns (uint256 actualToAmount, uint256 haircut) {
-        require(fromToken != address(0), 'ZERO');
-        require(toToken != address(0), 'ZERO');
-        require(fromToken != toToken, 'SAME_ADDRESS');
-        require(fromAmount > 0, 'ZERO_FROM_AMOUNT');
-        require(to != address(0), 'ZERO');
+        require(fromToken != address(0), 'Z');
+        require(toToken != address(0), 'Z');
+        require(fromToken != toToken, 'SAME_ADD');
+        require(fromAmount > 0, 'Z_FROM_AM');
+        require(to != address(0), 'Z');
 
         IERC20 fromERC20 = IERC20(fromToken);
         Asset fromAsset = _assetOf(fromToken);
@@ -796,7 +799,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         require(toAsset.aggregateAccount() == fromAsset.aggregateAccount(), 'DIFF_AGG_ACC');
 
         (actualToAmount, haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
-        require(minimumToAmount <= actualToAmount, 'AMOUNT_TOO_LOW');
+        require(minimumToAmount <= actualToAmount, 'AM_TOO_LOW');
 
         fromERC20.safeTransferFrom(address(msg.sender), address(fromAsset), fromAmount);
         fromAsset.addCash(fromAmount);
@@ -824,18 +827,18 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address payable to,
         uint256 deadline
     ) external ensure(deadline) nonReentrant whenNotPaused returns (uint256 actualToAmount, uint256 haircut) {
-        require(fromToken != address(0), 'PTP:ZERO_ADDRESS');
-        require(fromToken != weth, 'PTP:SAME_ADDRESS');
+        require(fromToken != address(0), 'Z_ADD');
+        require(fromToken != weth, 'SAME_ADD');
 
         IERC20 fromERC20 = IERC20(fromToken);
         Asset fromAsset = _assetOf(fromToken);
-        require(address(fromAsset) != address(0), 'PTP:ASSET_NOT_EXIST');
+        require(address(fromAsset) != address(0), 'ASST_N_EX');
         Asset toAsset = _assetOf(weth);
 
         require(toAsset.aggregateAccount() == fromAsset.aggregateAccount(), 'DIFF_AGG_ACC');
 
         (actualToAmount, haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
-        require(minimumToAmount <= actualToAmount, 'PTP:AMOUNT_TOO_LOW');
+        require(minimumToAmount <= actualToAmount, 'AM_TOO_LOW');
 
         fromERC20.safeTransferFrom(address(msg.sender), address(fromAsset), fromAmount);
         fromAsset.addCash(fromAmount);
@@ -862,18 +865,18 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address to,
         uint256 deadline
     ) external payable ensure(deadline) nonReentrant whenNotPaused returns (uint256 actualToAmount, uint256 haircut) {
-        require(toToken != address(0), 'PTP:ZERO_ADDRESS');
-        require(toToken != weth, 'PTP:SAME_ADDRESS');
+        require(toToken != address(0), 'Z_ADD');
+        require(toToken != weth, 'SAME_ADD');
 
         uint256 fromAmount = msg.value;
 
         Asset fromAsset = _assetOf(weth);
         Asset toAsset = _assetOf(toToken);
-        require(address(toAsset) != address(0), 'PTP:ASSET_NOT_EXIST');
+        require(address(toAsset) != address(0), 'ASST_N_EX');
         require(toAsset.aggregateAccount() == fromAsset.aggregateAccount(), 'DIFF_AGG_ACC');
 
         (actualToAmount, haircut) = _quoteFrom(fromAsset, toAsset, fromAmount);
-        require(minimumToAmount <= actualToAmount, 'PTP:AMOUNT_TOO_LOW');
+        require(minimumToAmount <= actualToAmount, 'AM_TOO_LOW');
 
         IWETH(weth).deposit{value: fromAmount}();
         IERC20(weth).safeTransfer(address(fromAsset), fromAmount);
@@ -899,7 +902,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         uint256 fromAmount
     ) private view returns (uint256 actualToAmount, uint256 haircut) {
         uint256 idealToAmount = _quoteIdealToAmount(fromAsset, toAsset, fromAmount);
-        require(toAsset.cash() >= idealToAmount, 'INSUFFICIENT_CASH');
+        require(toAsset.cash() >= idealToAmount, 'INSUF_CASH');
 
         uint256 slippageFrom = _slippage(
             _slippageParamK,
@@ -941,7 +944,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         Asset toAsset,
         uint256 fromAmount
     ) private view returns (uint256 idealToAmount) {
-        require(sAvax != address(0), 'sAVAX_NOT_SET');
+        require(sAvax != address(0), 'sAVAX_N_SET');
         // get sAvax rate in wad
         uint256 sAvaxRate = _priceOracle.getPooledAvaxByShares(1e18);
         require(sAvaxRate > 0, 'INVALID_PRICE');
@@ -959,7 +962,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
             idealToAmount = fromAmount.wdiv(sAvaxRate);
         } else {
             // we assume only these two tokens can be added to the pool
-            revert('UNSUPPORTED_SWAP');
+            revert('UNSUP');
         }
     }
 
@@ -977,10 +980,10 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address toToken,
         uint256 fromAmount
     ) external view override whenNotPaused returns (uint256 potentialOutcome, uint256 haircut) {
-        require(fromToken != address(0), 'ZERO');
-        require(toToken != address(0), 'ZERO');
-        require(fromToken != toToken, 'SAME_ADDRESS');
-        require(fromAmount > 0, 'ZERO_FROM_AMOUNT');
+        require(fromToken != address(0), 'Z');
+        require(toToken != address(0), 'Z');
+        require(fromToken != toToken, 'SAME_ADD');
+        require(fromAmount > 0, 'Z_FROM_AM');
 
         Asset fromAsset = _assetOf(fromToken);
         Asset toAsset = _assetOf(toToken);
@@ -1011,7 +1014,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
             bool enoughCash
         )
     {
-        require(token != address(0), 'ZERO');
+        require(token != address(0), 'Z');
         require(liquidity > 0, 'LIQ=0');
 
         Asset asset = _assetOf(token);
@@ -1032,8 +1035,8 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         address wantedToken,
         uint256 liquidity
     ) external view whenNotPaused returns (uint256 amount, uint256 fee) {
-        require(initialToken != address(0), 'ZERO');
-        require(wantedToken != address(0), 'ZERO');
+        require(initialToken != address(0), 'Z');
+        require(wantedToken != address(0), 'Z');
         require(liquidity > 0, 'LIQ=0');
 
         Asset initialAsset = _assetOf(initialToken);
@@ -1044,7 +1047,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
         bool enoughCash;
         (amount, , fee, enoughCash) = _withdrawFrom(wantedAsset, liquidity);
 
-        require(enoughCash, 'NOT_ENOUGH_CASH');
+        require(enoughCash, 'N_ENOUGH_CASH');
 
         // require after withdrawal coverage to >= 1
         require((wantedAsset.cash() - amount).wdiv(wantedAsset.liability()) >= ETH_UNIT, 'COV_RATIO_LOW');
@@ -1066,7 +1069,7 @@ contract PoolSAvax is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradea
 
         uint256 wantedAssetCov = (wantedAsset.cash()).wdiv(wantedAsset.liability());
 
-        require(sAvax != address(0), 'sAVAX_NOT_SET');
+        require(sAvax != address(0), 'sAVAX_N_SET');
         uint256 sAvaxRate = _priceOracle.getPooledAvaxByShares(1e18);
         require(sAvaxRate > 0, 'INVALID_PRICE');
 
