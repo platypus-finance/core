@@ -96,6 +96,27 @@ export const setupSAvaxPool = async (owner: Signer): Promise<{ pool: Contract; W
   return { pool, WETH }
 }
 
+export const setupSAvaxPoolTestERC20 = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
+  PoolYYAvax = await ethers.getContractFactory('PoolSAvax')
+  WETHForwarder = await ethers.getContractFactory('WETHForwarder')
+
+  const pool = await PoolYYAvax.connect(owner).deploy()
+  const WETH = await TestERC20.connect(owner).deploy('WAVAX', 'WAVAX', 18, parseEther('10000000000000000000000'))
+
+  // Wait for contract to be deployed
+  await pool.deployTransaction.wait()
+  await WETH.deployTransaction.wait()
+
+  await pool.connect(owner).initialize(WETH.address)
+
+  // Set WETH Forwarder
+  const forwarder = await WETHForwarder.connect(owner).deploy(WETH.address)
+  await forwarder.connect(owner).setPool(pool.address)
+  await pool.connect(owner).setWETHForwarder(forwarder.address)
+
+  return { pool, WETH }
+}
+
 export const setupYYAvaxPool = async (owner: Signer): Promise<{ pool: Contract; WETH: Contract }> => {
   PoolYYAvax = await ethers.getContractFactory('PoolYYAvax')
   WETHForwarder = await ethers.getContractFactory('WETHForwarder')
