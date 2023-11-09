@@ -592,6 +592,18 @@ contract PoolSecondaryPure is
         emit Withdraw(msg.sender, token, amount, liquidity, to);
     }
 
+    /// @notice Converts amount of lp1 to lp2 taking into account the value of the lp.
+    /// Takes into accounts decimals and LP values
+    function convertLp(
+        Asset lp1,
+        Asset lp2,
+        uint256 amountLp1
+    ) public view returns (uint256) {
+        return
+            (((amountLp1 * (10**lp2.decimals())) / (10**lp1.decimals())) * lp1.liability() * lp2.totalSupply()) /
+            (lp2.liability() * lp1.totalSupply());
+    }
+
     /**
      * @notice Enables withdrawing liquidity from an asset using LP from a different asset in the same aggregate
      * @param initialToken The corresponding token user holds the LP (Asset) from
@@ -624,8 +636,9 @@ contract PoolSecondaryPure is
         // assets need to be in the same aggregate in order to allow for withdrawing other assets
         require(wantedAsset.aggregateAccount() == initialAsset.aggregateAccount(), 'DIFF_AGG_ACC');
 
-        // Convert liquidity to d.p of initial asset
-        uint256 liquidityInInitialAssetDP = (liquidity * 10**initialAsset.decimals()) / (10**wantedAsset.decimals());
+        // converts LP from wantedAsset to LP from initialAsset
+        // takes into account decimals and LP values
+        uint256 liquidityInInitialAssetDP = convertLp(wantedAsset, initialAsset, liquidity);
 
         // require liquidity in initial asset dp to be > 0
         require(liquidityInInitialAssetDP > 0, 'DUST?');

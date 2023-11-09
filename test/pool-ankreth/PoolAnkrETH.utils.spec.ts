@@ -3,7 +3,7 @@ import { parseEther } from '@ethersproject/units'
 import chai from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { BigNumber, ContractFactory } from 'ethers'
-import { setupYYAvaxPool, setupYYAvaxPriceFeed, usdc } from '../helpers/helper'
+import { setupAnkrETHPool, usdc, setupAnkrETHPriceFeed } from '../helpers/helper'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { assert } from 'chai'
 import { setupAggregateAccount } from '../helpers/helper'
@@ -11,7 +11,7 @@ import { setupAggregateAccount } from '../helpers/helper'
 const { expect } = chai
 chai.use(solidity)
 
-describe('AvaxPool Utils', function () {
+describe('AnkrETHPool Utils', function () {
   let owner: SignerWithAddress
   let users: SignerWithAddress[]
   let TestERC20: ContractFactory
@@ -28,16 +28,14 @@ describe('AvaxPool Utils', function () {
   })
 
   beforeEach(async function () {
-    const TestWAVAX = await ethers.getContractFactory('TestWAVAX')
-
     // Deploy and initialize pool
-    const poolSetup = await setupYYAvaxPool(owner)
+    const poolSetup = await setupAnkrETHPool(owner)
     this.pool = poolSetup.pool
-    this.WETH = await TestWAVAX.deploy()
+
     this.lastBlock = await ethers.provider.getBlock('latest')
     this.lastBlockTime = this.lastBlock.timestamp
 
-    await setupYYAvaxPriceFeed(this.pool)
+    await setupAnkrETHPriceFeed(this.pool)
   })
 
   describe('Get and set slippage params, haircut and retention ratio', function () {
@@ -104,22 +102,17 @@ describe('AvaxPool Utils', function () {
       ).to.be.reverted
     })
 
-    it('sets and gets WETHForwarder', async function () {
-      // gets WETHForwarder
-      assert.exists(await this.pool.connect(owner).wethForwarder(), 'Param OK')
-
-      // Can set WETHForwarder
-      await this.pool.connect(owner).setWETHForwarder('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
-      expect(await this.pool.connect(owner).wethForwarder()).to.be.equal('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
-    })
-
-    it('sets and gets sAvax', async function () {
+    it('sets and gets ankrETH and WETH.e', async function () {
       // gets sAvax
-      assert.exists(await this.pool.connect(owner).yyAvax(), 'Param OK')
+      assert.exists(await this.pool.connect(owner).ankrETH(), 'Param OK')
+      assert.exists(await this.pool.connect(owner).wethe(), 'Param OK')
 
       // Can set WETHForwarder
-      await this.pool.connect(owner).setYYAvax('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
-      expect(await this.pool.connect(owner).yyAvax()).to.be.equal('0xd00ae08403B9bbb9124bB305C09058E32C39A48c')
+      await this.pool.connect(owner).setAnkrETH('0x12D8CE035c5DE3Ce39B1fDD4C1d5a745EAbA3b8C')
+      await this.pool.connect(owner).setWETHe('0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB')
+
+      expect(await this.pool.connect(owner).ankrETH()).to.be.equal('0x12D8CE035c5DE3Ce39B1fDD4C1d5a745EAbA3b8C')
+      expect(await this.pool.connect(owner).wethe()).to.be.equal('0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB')
     })
 
     it('Should revert if slippage params are set outside out of their boundaries', async function () {
@@ -249,12 +242,12 @@ describe('AvaxPool Utils', function () {
         // Add ERC20 token with zero address
         await expect(
           this.pool.connect(owner).addAsset(ethers.constants.AddressZero, this.assetERC.address)
-        ).to.be.revertedWith('Z')
+        ).to.be.revertedWith('ZERO')
 
         // Add Asset with zero address
         await expect(
           this.pool.connect(owner).addAsset(this.erc20.address, ethers.constants.AddressZero)
-        ).to.be.revertedWith('Z')
+        ).to.be.revertedWith('ZERO')
 
         // Add existing asset
         await expect(this.pool.connect(owner).addAsset(this.DAI.address, this.assetERC.address)).to.be.revertedWith(

@@ -10,13 +10,13 @@ import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol';
 
 import '../libraries/DSMath.sol';
-import '../interfaces/IPriceOracleGetter.sol';
+import '../interfaces/IAnkrETHOracle.sol';
 import '../asset/Asset.sol';
 import './Core.sol';
 import '../interfaces/IPool.sol';
 
 /**
- * @title PoolSecondary
+ * @title PoolAnkrETH
  * @notice Manages deposits, withdrawals and swaps. Holds a mapping of assets and parameters.
  * @dev The main entry-point of Platypus protocol
  *
@@ -26,8 +26,15 @@ import '../interfaces/IPool.sol';
  * The unique features of the Platypus make it an important subject in the study of evolutionary biology.
  * Changes:
  * removed impairment loss/gain on withdrawals/deposits
+ * removed _checkPriceDeviation (chainlink peg check)
+ * added AnkrETH state variable and setAnkrETH() function
+ * AnkrETH : 0x12d8ce035c5de3ce39b1fdd4c1d5a745eaba3b8c
+ * WETH.e : 0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab
+ * Price oracle avalanche mainnet : 0xEf3C162450E1d08804493aA27BE60CDAa054050F.
+ * To get price : getRatioFor(“0xE95A203B1a91a908F9B9CE46459d101078c2c3cb”)
+ * Can only handle WETH.e and ankrETH
  */
-contract PoolSecondary is
+contract PoolAnkrETH is
     Initializable,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable,
@@ -70,10 +77,16 @@ contract PoolSecondary is
     address private _dev;
 
     /// @notice The price oracle interface used in swaps
-    IPriceOracleGetter private _priceOracle;
+    IAnkrETHOracle private _priceOracle;
 
     /// @notice A record of assets inside Pool
     AssetMap private _assets;
+
+    /// @notice ankrETH address
+    address public ankrETH;
+
+    /// @notice WETH.e address
+    address public wethe;
 
     /// @notice An event emitted when an asset is added to Pool
     event AssetAdded(address indexed token, address indexed asset);
@@ -121,6 +134,12 @@ contract PoolSecondary is
         address indexed to
     );
 
+    /// @notice An event emitted when ankrETH address changes
+    event AnkrETHUpdated(address previousAnkrETH, address newAnkrETH);
+
+    /// @notice An event emitted when WETH.e address changes
+    event WETHeUpdated(address previousWETHe, address newWETHe);
+
     /// @dev Modifier ensuring that certain function can only be called by developer
     modifier onlyDev() {
         require(_dev == msg.sender, 'FORBIDDEN');
@@ -146,7 +165,7 @@ contract PoolSecondary is
         _slippageParamN = 7; // 7
         _c1 = 376927610599998308; // ((k**(1/(n+1))) / (n**((n)/(n+1)))) + (k*n)**(1/(n+1))
         _xThreshold = 329811659274998519; // (k*n)**(1/(n+1))
-        _haircutRate = 0.0003e18; // 3 * 10**14 == 0.0003 == 0.03% for intra-aggregate account swap
+        _haircutRate = 0.0004e18; // 4 * 10**14 == 0.0004 == 0.04% for intra-aggregate account swap
         _retentionRatio = ETH_UNIT; // 1
         _maxPriceDeviation = 0.02e18; // 2 * 10**16 == 2% = 0.02 in ETH_UNIT.
 
@@ -254,6 +273,26 @@ contract PoolSecondary is
     }
 
     /**
+     * @notice Changes ankrETH address
+     * @param ankrETH_ the new ankrETH address
+     */
+    function setAnkrETH(address ankrETH_) external onlyOwner {
+        require(ankrETH_ != address(0), 'ZERO');
+        emit AnkrETHUpdated(ankrETH, ankrETH_);
+        ankrETH = ankrETH_;
+    }
+
+    /**
+     * @notice Changes WETH.e address
+     * @param wethe_ the new WETH.e address
+     */
+    function setWETHe(address wethe_) external onlyOwner {
+        require(wethe_ != address(0), 'ZERO');
+        emit WETHeUpdated(wethe, wethe_);
+        wethe = wethe_;
+    }
+
+    /**
      * @notice Changes the pools slippage params. Can only be set by the contract owner.
      * @param k_ new pool's slippage param K
      * @param n_ new pool's slippage param N
@@ -314,7 +353,7 @@ contract PoolSecondary is
     function setPriceOracle(address priceOracle) external onlyOwner {
         require(priceOracle != address(0), 'ZERO');
         emit OracleUpdated(address(_priceOracle), priceOracle);
-        _priceOracle = IPriceOracleGetter(priceOracle);
+        _priceOracle = IAnkrETHOracle(priceOracle);
     }
 
     // Asset struct functions //
@@ -395,24 +434,6 @@ contract PoolSecondary is
     }
 
     // Pool Functions //
-    /**
-     * @notice Checks deviation is not higher than specified amount
-     * @dev Reverts if deviation is higher than _maxPriceDeviation
-     * @param tokenA First token
-     * @param tokenB Second token
-     */
-    function _checkPriceDeviation(address tokenA, address tokenB) private view {
-        uint256 tokenAPrice = _priceOracle.getAssetPrice(tokenA);
-        uint256 tokenBPrice = _priceOracle.getAssetPrice(tokenB);
-
-        // check if prices respect their maximum deviation for a > b : (a - b) / a < maxDeviation
-        if (tokenBPrice > tokenAPrice) {
-            require((((tokenBPrice - tokenAPrice) * ETH_UNIT) / tokenBPrice) <= _maxPriceDeviation, 'PRICE_DEV');
-        } else {
-            require((((tokenAPrice - tokenBPrice) * ETH_UNIT) / tokenAPrice) <= _maxPriceDeviation, 'PRICE_DEV');
-        }
-    }
-
     /**
      * @notice Adds asset to pool, reverts if asset already exists in pool
      * @param token The address of token
@@ -653,12 +674,25 @@ contract PoolSecondary is
         // assets need to be in the same aggregate in order to allow for withdrawing other assets
         require(wantedAsset.aggregateAccount() == initialAsset.aggregateAccount(), 'DIFF_AGG_ACC');
 
-        // check if price deviation is OK between assets
-        _checkPriceDeviation(initialToken, wantedToken);
-
         // converts LP from wantedAsset to LP from initialAsset
         // takes into account decimals and LP values
         uint256 liquidityInInitialAssetDP = convertLp(wantedAsset, initialAsset, liquidity);
+
+        require(wethe != address(0), 'weth_NOT_SET');
+        require(ankrETH != address(0), 'ankrETH_NOT_SET');
+        uint256 ankrETHRate = ETH_UNIT.wdiv(_priceOracle.getRatioFor(0xE95A203B1a91a908F9B9CE46459d101078c2c3cb));
+        require(ankrETHRate > 0, 'INVALID_PRICE');
+
+        // ankrETH -> WETH.e
+        if (initialToken == ankrETH && wantedToken == wethe) {
+            liquidityInInitialAssetDP = liquidityInInitialAssetDP.wdiv(ankrETHRate);
+            // WETH.e -> ankrETH
+        } else if (initialToken == wethe && wantedToken == ankrETH) {
+            liquidityInInitialAssetDP = liquidityInInitialAssetDP.wmul(ankrETHRate);
+        } else {
+            // we assume only these two tokens can be added to the pool
+            revert('UNSUPPORTED_WITHDRAW_IN_OTHER_ASSET');
+        }
 
         // require liquidity in initial asset dp to be > 0
         require(liquidityInInitialAssetDP > 0, 'DUST?');
@@ -787,6 +821,7 @@ contract PoolSecondary is
      * @param fromAsset The initial asset
      * @param toAsset The asset wanted by user
      * @param fromAmount The amount to quote
+     * @dev assumes only ankrETH and WETH.e assets can be swaped for this pool.
      * @return idealToAmount The ideal amount user would receive
      */
     function _quoteIdealToAmount(
@@ -794,11 +829,26 @@ contract PoolSecondary is
         Asset toAsset,
         uint256 fromAmount
     ) private view returns (uint256 idealToAmount) {
-        // check deviation is not higher than specified amount
-        _checkPriceDeviation(fromAsset.underlyingToken(), toAsset.underlyingToken());
+        require(ankrETH != address(0), 'ankrETH_NOT_SET');
+        // get ankrETH rate in wad
+        uint256 ankrETHRate = ETH_UNIT.wdiv(_priceOracle.getRatioFor(0xE95A203B1a91a908F9B9CE46459d101078c2c3cb));
+        require(ankrETHRate > 0, 'INVALID_PRICE');
 
-        // assume perfect peg between assets
-        idealToAmount = ((fromAmount * 10**toAsset.decimals()) / 10**fromAsset.decimals());
+        // get tokens to be swapped
+        address fromToken = fromAsset.underlyingToken();
+        address toToken = toAsset.underlyingToken();
+
+        // ankrETH -> WETH.e => apply rate
+        if (fromToken == ankrETH && toToken == wethe) {
+            idealToAmount = fromAmount.wmul(ankrETHRate);
+
+            // WETH.e -> ankrETH => divide rate
+        } else if (fromToken == wethe && toToken == ankrETH) {
+            idealToAmount = fromAmount.wdiv(ankrETHRate);
+        } else {
+            // we assume only these two tokens can be added to the pool
+            revert('UNSUPPORTED_SWAP');
+        }
     }
 
     /**
@@ -899,17 +949,31 @@ contract PoolSecondary is
         whenNotPaused
         returns (uint256 maxInitialAssetAmount)
     {
-        _checkPriceDeviation(initialToken, wantedToken);
-
         Asset initialAsset = _assetOf(initialToken);
         Asset wantedAsset = _assetOf(wantedToken);
 
         uint256 wantedAssetCov = (wantedAsset.cash()).wdiv(wantedAsset.liability());
 
+        require(ankrETH != address(0), 'ankrETH_NOT_SET');
+        uint256 ankrETHRate = ETH_UNIT.wdiv(_priceOracle.getRatioFor(0xE95A203B1a91a908F9B9CE46459d101078c2c3cb));
+        require(ankrETHRate > 0, 'INVALID_PRICE');
+
         if (wantedAssetCov > ETH_UNIT) {
             maxInitialAssetAmount =
                 ((wantedAssetCov - ETH_UNIT).wmul(wantedAsset.totalSupply()) * 10**initialAsset.decimals()) /
                 10**wantedAsset.decimals();
+
+            // Apply rate
+            // ankrETH -> WETH.e
+            if (initialToken == ankrETH && wantedToken == wethe) {
+                maxInitialAssetAmount = maxInitialAssetAmount.wdiv(ankrETHRate);
+                // WETH.e -> ankrETH
+            } else if (initialToken == wethe && wantedToken == ankrETH) {
+                maxInitialAssetAmount = maxInitialAssetAmount.wmul(ankrETHRate);
+            } else {
+                // we assume only these two tokens can be added to the pool
+                revert('UNSUPPORTED_WITHDRAW_IN_OTHER_ASSET');
+            }
         } else {
             maxInitialAssetAmount = 0;
         }

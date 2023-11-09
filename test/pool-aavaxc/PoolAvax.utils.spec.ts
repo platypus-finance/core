@@ -249,12 +249,12 @@ describe('AvaxPool Utils', function () {
         // Add ERC20 token with zero address
         await expect(
           this.pool.connect(owner).addAsset(ethers.constants.AddressZero, this.assetERC.address)
-        ).to.be.revertedWith('ZERO')
+        ).to.be.revertedWith('Z')
 
         // Add Asset with zero address
         await expect(
           this.pool.connect(owner).addAsset(this.erc20.address, ethers.constants.AddressZero)
-        ).to.be.revertedWith('ZERO')
+        ).to.be.revertedWith('Z')
 
         // Add existing asset
         await expect(this.pool.connect(owner).addAsset(this.DAI.address, this.assetERC.address)).to.be.revertedWith(
